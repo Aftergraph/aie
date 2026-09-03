@@ -29,12 +29,18 @@ def _admission(
     raw_path: str,
     headers: Mapping[str, str],
     body: Mapping[str, Any],
+    configured_tenant: str | None = None,
 ) -> tuple[dict[str, str], dict[str, Any]]:
     parsed = urlsplit(raw_path)
     segments = [segment for segment in parsed.path.split("/") if segment]
-    tenant = None
-    if segments and segments[0] not in {"message:send", "message:stream", "tasks", "extendedAgentCard"}:
-        tenant = _canonical_segment(segments.pop(0))
+    tenant = configured_tenant
+    if tenant is not None:
+        if not segments or _canonical_segment(segments[0]) != tenant:
+            raise ProtocolError(
+                "AIE-PROTO-002",
+                "HTTP+JSON tenant path does not match configured AgentInterface tenant",
+            )
+        segments.pop(0)
     path = "/" + "/".join(segments)
     out_headers = dict(headers)
     if tenant:
@@ -69,15 +75,8 @@ def _admission(
 
 def _forward_headers(headers: Mapping[str, str]) -> dict[str, str]:
     hop = {
-        "connection",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-        "content-length",
+        "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+        "te", "trailer", "transfer-encoding", "upgrade", "content-length",
     }
     return {
         key: value
@@ -113,15 +112,13 @@ class A2AHTTPJSONForwarder:
     def request(self, method: str, path: str, headers: Mapping[str, str], raw_body: bytes) -> UpstreamResponse:
         base = urlsplit(self.base_url)
         relative = urlsplit(path)
-        target = urlunsplit(
-            (
-                base.scheme,
-                base.netloc,
-                base.path.rstrip("/") + "/" + relative.path.lstrip("/"),
-                relative.query,
-                "",
-            )
-        )
+        target = urlunsplit((
+            base.scheme,
+            base.netloc,
+            base.path.rstrip("/") + "/" + relative.path.lstrip("/"),
+            relative.query,
+            "",
+        ))
         out_headers = _forward_headers(headers)
         if self.expected_peer_spiffe_id:
             if self.ssl_context is None:
@@ -163,12 +160,14 @@ class A2AHTTPJSONServer(ThreadingHTTPServer):
         *,
         gateway: AIEGateway,
         forwarder: A2AHTTPJSONForwarder,
+        tenant: str | None = None,
         trust_header_identity: bool = False,
         ssl_context: ssl.SSLContext | None = None,
     ):
         super().__init__(address, _Handler)
         self.gateway = gateway
         self.forwarder = forwarder
+        self.tenant = tenant
         self.trust_header_identity = trust_header_identity
         self.tls_enabled = ssl_context is not None
         if ssl_context is not None:
@@ -200,9 +199,13 @@ class _Handler(BaseHTTPRequestHandler):
     def _send(self, status: int, payload: dict[str, Any] | bytes, headers: Mapping[str, str] | None = None) -> None:
         raw = payload if isinstance(payload, bytes) else json.dumps(payload, separators=(",", ":")).encode()
         self.send_response(status)
+        emitted_content_type = False
         for key, value in (headers or {}).items():
             if key.lower() not in {"content-length", "connection", "transfer-encoding"}:
                 self.send_header(key, value)
+                emitted_content_type = emitted_content_type or key.lower() == "content-type"
+        if not emitted_content_type:
+            self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
@@ -215,7 +218,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 raise ValueError
             headers = {key: value for key, value in self.headers.items()}
-            admission_headers, internal = _admission(method, self.path, headers, body)
+            admission_headers, internal = _admission(method, self.path, headers, body, self.server.tenant)
         except ProtocolError as exc:
             self._send(400, {"error_code": exc.code})
             return
@@ -235,15 +238,12 @@ class _Handler(BaseHTTPRequestHandler):
             return
         decision = result.decision
         status = 409 if decision.status == "prior-outcome" else 502 if decision.status == "uncertain" else 403
-        self._send(
-            status,
-            {
-                "status": decision.status,
-                "action_id": decision.action_id,
-                "error_code": decision.error_code,
-                "prior": decision.prior,
-            },
-        )
+        self._send(status, {
+            "status": decision.status,
+            "action_id": decision.action_id,
+            "error_code": decision.error_code,
+            "prior": decision.prior,
+        })
 
     def do_GET(self) -> None:
         self._handle("GET")
@@ -258,6 +258,7 @@ def create_a2a_http_json_server(
     *,
     host: str = "127.0.0.1",
     port: int = 0,
+    tenant: str | None = None,
     trust_header_identity: bool = False,
     ssl_context: ssl.SSLContext | None = None,
 ) -> A2AHTTPJSONServer:
@@ -265,6 +266,7 @@ def create_a2a_http_json_server(
         (host, port),
         gateway=gateway,
         forwarder=forwarder,
+        tenant=tenant,
         trust_header_identity=trust_header_identity,
         ssl_context=ssl_context,
     )
