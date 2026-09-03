@@ -4,7 +4,7 @@ This runner exists to change the **execution provider**, not the AIE promotion c
 
 ## Security boundary
 
-The workflow is `workflow_dispatch` only and grants `GITHUB_TOKEN` only `contents: read`. Use a dedicated or ephemeral Linux runner for this public repository. Do not place unrelated long-lived secrets on the host.
+The workflow is `workflow_dispatch` only and grants `GITHUB_TOKEN` only `contents: read`. Use a dedicated or ephemeral Linux runner for this public repository. Do not place unrelated long-lived secrets on the host. Checkout explicitly sets `persist-credentials: false` and `clean: true` so the ephemeral job token is not retained in the persistent workspace and stale untracked files are removed before execution.
 
 Required runner labels:
 

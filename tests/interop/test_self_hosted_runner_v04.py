@@ -15,6 +15,8 @@ def test_self_hosted_workflow_is_read_only_and_uses_dedicated_runner_labels():
     assert 'preflight_external_host.sh' in workflow
     assert 'run_external_host.sh' in workflow
     assert 'actions/upload-artifact@v4' in workflow
+    assert 'persist-credentials: false' in workflow
+    assert 'clean: true' in workflow
     assert 'AIE_S1_1_PROMOTION.json' in workflow
 
 

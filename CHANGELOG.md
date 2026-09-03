@@ -6,6 +6,7 @@
 - add fail-fast external-host preflight for privilege, network, tools, disk, workspace access and fixed lab ports
 - add runner-neutral wrapper that reuses the canonical S1.1 promotion contract and evidence paths
 - create a fresh per-run Python venv so persistent runners are not mutated globally and PEP 668 hosts remain compatible
+- disable checkout credential persistence and explicitly clean the persistent runner workspace before execution
 - make the known-blocked GitHub-hosted external probe manual-only to avoid false-red `main` pushes
 - add regression coverage for runner routing, permission boundaries, preflight requirements and promotion-contract reuse
 
