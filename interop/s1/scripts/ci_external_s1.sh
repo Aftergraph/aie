@@ -53,7 +53,7 @@ ready=0
 for _ in $(seq 1 150); do
   ready=0
   for user in aie-s1-client aie-s1-gateway aie-s1-server; do
-    if runuser -u "$user" -- "$SPIRE_ROOT/bin/spire-agent" api fetch x509 -socketPath "$AGENT_API_SOCK" -timeout 2 >/dev/null 2>&1; then
+    if runuser -u "$user" -- "$SPIRE_ROOT/bin/spire-agent" api fetch x509 -socketPath "$AGENT_API_SOCK" -timeout 2s >/dev/null 2>&1; then
       ready=$((ready+1))
     fi
   done
