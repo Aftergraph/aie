@@ -51,5 +51,8 @@ python3 "$HERE/collect_report.py" \
   --direct "$AIE_S2_RESULTS/direct/compatibility.json" \
   --spiffe "$AIE_S2_RESULTS/spiffe/compatibility.json" \
   --aie "$AIE_S2_RESULTS/aie/compatibility.json" \
+  --direct-exit-code "$AIE_S2_RESULTS/direct/exit_code.txt" \
+  --spiffe-exit-code "$AIE_S2_RESULTS/spiffe/exit_code.txt" \
+  --aie-exit-code "$AIE_S2_RESULTS/aie/exit_code.txt" \
   --s1-promotion "$AIE_S2_S1_PROMOTION" \
   --output "$AIE_S2_RESULTS/AIE_S2_A2A_INTEROP.json"
