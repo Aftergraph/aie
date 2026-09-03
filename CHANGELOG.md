@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4-S2 HTTP+JSON non-streaming transport — 2026-09-03
+
+- add A2A 1.0 HTTP+JSON non-streaming admission for `POST /message:send`, `GET /tasks`, `GET /tasks/{id}`, and `POST /tasks/{id}:cancel`
+- preserve original REST method, path, query, body and non-AIE headers across admitted upstream forwarding
+- keep outbound SPIFFE expected-peer verification on the same generic HTTP request path
+- bind tenant-prefixed REST traffic into canonical `a2a://tenant/<tenant>/...` authority resources and reject path/body tenant mismatch
+- keep ordinary HTTP+JSON GET reads repeatable with per-request action identifiers while send/cancel mutations remain replay-protected
+- add a separate `a2a_http_json` upstream configuration surface instead of overloading the JSON-RPC `/a2a` endpoint
+- explicitly do not claim SSE streaming, push-notification resources, gRPC, or official external TCK PASS in this slice
+- clean-room verification: 5/5 targeted HTTP+JSON tests and 87/87 v0.3 runtime regression tests passing
+
 ## v0.4-S2 A2A TCK preparation — 2026-09-03
 
 - pin official `a2aproject/a2a-tck` package `1.0.0` to commit `263b9cfaf16a554bdfb166a7ba5b67716e946349`
