@@ -14,7 +14,7 @@ def test_self_hosted_workflow_is_read_only_and_uses_dedicated_runner_labels():
     assert 'pull-requests: write' not in workflow
     assert 'preflight_external_host.sh' in workflow
     assert 'run_external_host.sh' in workflow
-    assert 'actions/upload-artifact@v4' in workflow
+    assert 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' in workflow
     assert 'persist-credentials: false' in workflow
     assert 'clean: true' in workflow
     assert 'AIE_S1_1_PROMOTION.json' in workflow
@@ -69,3 +69,12 @@ def test_external_host_uses_isolated_python_environment_instead_of_mutating_syst
     assert '-m venv' in wrapper
     assert '"$AIE_S1_VENV/bin/python" -m pip install' in wrapper
     assert 'export AIE_S1_PYTHON="$AIE_S1_VENV/bin/python"' in wrapper
+
+
+def test_root_capable_self_hosted_workflow_runs_only_from_main_and_pins_actions_by_commit_sha():
+    workflow = (ROOT / '.github/workflows/aie-v04-s1-self-hosted.yml').read_text(encoding='utf-8')
+    assert "if: github.ref == 'refs/heads/main'" in workflow
+    assert 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262' in workflow
+    assert 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' in workflow
+    assert 'actions/checkout@v4' not in workflow
+    assert 'actions/upload-artifact@v4' not in workflow

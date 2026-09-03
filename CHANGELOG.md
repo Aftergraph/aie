@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4-S1.2 runner provisioning — 2026-09-03
+
+- pin GitHub Actions Runner `v2.337.0` with the official Linux x64 SHA-256
+- add checksum-verified bootstrap for a dedicated non-root `aie-runner` service
+- require explicit dedicated-host opt-in before granting the S1 lab passwordless sudo boundary
+- consume registration/removal tokens only as short-lived environment input and never persist them in repo evidence
+- disable runner automatic updates so the externally tested execution runtime remains pinned and auditable
+- restrict the root-capable self-hosted proof to `main` and pin checkout/artifact Actions by immutable commit SHA
+- roll back the sudoers grant on incomplete bootstrap and revoke it even when deregistration fails
+- add controlled service deregistration while preserving runner files for diagnostics/audit
+- add regression coverage for pinning, checksum verification, token redaction, labels, system service lifecycle and removal
+
 ## v0.4-S1.2 runner portability — 2026-09-03
 
 - add read-only manual self-hosted Linux workflow with dedicated `aie-interop` runner label
@@ -15,7 +27,7 @@
 - add read-only GitHub Actions external interoperability workflow
 - add pinned SPIRE 1.15.2 download and SHA-256 verification
 - add official MCP three-leg conformance harness using frozen 2026-07-28 requirements
-- add live local X.509 authority prepare/activate/revoke rotation gate
+- add live local X.509 authority prepare → activate → revoke gate
 - add SVID/bundle change observation and old-trust rejection evidence
 - add absolute tool-path handling across sudo/runuser boundaries
 - isolate writable SQLite and evidence paths for distinct Unix workload identities
