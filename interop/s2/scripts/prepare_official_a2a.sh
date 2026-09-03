@@ -8,19 +8,29 @@ AIE_S2_STATE=${AIE_S2_STATE:-/tmp/aie-v04-s2}
 AIE_S2_TCK_DIR=${AIE_S2_TCK_DIR:-$AIE_S2_STATE/a2a-tck}
 mkdir -p "$AIE_S2_STATE"
 
+command -v uv >/dev/null 2>&1 || {
+  echo "AIE S2: uv is required to reproduce the official TCK lockfile" >&2
+  exit 2
+}
+
 if [[ ! -d "$AIE_S2_TCK_DIR/.git" ]]; then
   git clone "$A2A_TCK_REPO" "$AIE_S2_TCK_DIR"
 fi
+
+ORIGIN=$(git -C "$AIE_S2_TCK_DIR" remote get-url origin)
+[[ "$ORIGIN" == "$A2A_TCK_REPO" ]] || {
+  echo "AIE S2: TCK origin $ORIGIN != pinned official repository $A2A_TCK_REPO" >&2
+  exit 2
+}
 
 git -C "$AIE_S2_TCK_DIR" fetch origin "$A2A_TCK_COMMIT"
 (
   cd "$AIE_S2_TCK_DIR"
   git checkout --detach "$A2A_TCK_COMMIT"
   [[ "$(git rev-parse HEAD)" == "$A2A_TCK_COMMIT" ]]
+  [[ -f uv.lock ]] || { echo "AIE S2: pinned TCK checkout is missing uv.lock" >&2; exit 2; }
   rm -rf .venv
-  python3 -m venv .venv
-  .venv/bin/python -m pip install --upgrade pip
-  .venv/bin/python -m pip install -e .
+  uv sync --frozen --no-dev
   .venv/bin/python - <<PY
 import tomllib
 from pathlib import Path
