@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4-S1.2 runner provisioning — 2026-09-03
+
+- pin GitHub Actions Runner `v2.337.0` with the official Linux x64 SHA-256
+- add checksum-verified bootstrap for a dedicated non-root `aie-runner` service
+- require explicit dedicated-host opt-in before granting the S1 lab passwordless sudo boundary
+- consume registration/removal tokens only as short-lived environment input and never persist them in repo evidence
+- disable runner automatic updates so the externally tested execution runtime remains pinned and auditable
+- add controlled service deregistration while preserving runner files for diagnostics/audit
+- add regression coverage for pinning, checksum verification, token redaction, labels, system service lifecycle and removal
+
 ## v0.4-S1.2 runner portability — 2026-09-03
 
 - add read-only manual self-hosted Linux workflow with dedicated `aie-interop` runner label
