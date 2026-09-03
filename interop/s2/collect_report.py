@@ -36,6 +36,8 @@ def must_requirements(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def card_semantics(report: dict[str, Any]) -> dict[str, Any]:
     card = report.get('agent_card') or {}
+    # Endpoint URL is expected to differ between direct/proxied legs. The
+    # advertised protocol/capability/skill semantics must not.
     return {
         'protocolVersion': card.get('protocolVersion'),
         'capabilities': card.get('capabilities'),
@@ -54,7 +56,11 @@ def main() -> int:
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
 
-    reports = {'direct': load_json(args.direct), 'spiffe': load_json(args.spiffe), 'aie': load_json(args.aie)}
+    reports = {
+        'direct': load_json(args.direct),
+        'spiffe': load_json(args.spiffe),
+        'aie': load_json(args.aie),
+    }
     must = {name: must_requirements(report) for name, report in reports.items()}
     ids = {name: set(values) for name, values in must.items()}
     ids_equal = ids['direct'] == ids['spiffe'] == ids['aie']
@@ -63,7 +69,10 @@ def main() -> int:
     if not ids['direct']:
         semantic_delta.append('empty-must-set:direct')
     if not ids_equal:
-        semantic_delta.append('requirement-id-set:' + json.dumps({name: sorted(value) for name, value in ids.items()}, sort_keys=True))
+        semantic_delta.append(
+            'requirement-id-set:'
+            + json.dumps({name: sorted(value) for name, value in ids.items()}, sort_keys=True)
+        )
 
     statuses_equal = True
     for req_id in sorted(set().union(*ids.values())):
@@ -72,7 +81,11 @@ def main() -> int:
             statuses_equal = False
             continue
         signature = [
-            {'status': entry.get('status'), 'transports': entry.get('transports') or {}, 'test_ids': sorted(entry.get('test_ids') or [])}
+            {
+                'status': entry.get('status'),
+                'transports': entry.get('transports') or {},
+                'test_ids': sorted(entry.get('test_ids') or []),
+            }
             for entry in entries
         ]
         if not (signature[0] == signature[1] == signature[2]):
@@ -92,7 +105,10 @@ def main() -> int:
         per_transport = report.get('per_transport') or {}
         transport_summaries[name] = {transport: per_transport.get(transport) for transport in sorted(required_transports)}
         missing = sorted(required_transports - set(per_transport))
-        empty = sorted(transport for transport in required_transports if transport in per_transport and int((per_transport.get(transport) or {}).get('total', 0)) <= 0)
+        empty = sorted(
+            transport for transport in required_transports
+            if transport in per_transport and int((per_transport.get(transport) or {}).get('total', 0)) <= 0
+        )
         if missing or empty:
             transport_coverage = False
             semantic_delta.append(f'transport-coverage:{name}:missing={missing}:empty={empty}')
@@ -122,10 +138,18 @@ def main() -> int:
             'a2a_tck_repo': versions['A2A_TCK_REPO'],
             'a2a_python_sdk_reference_version': versions['A2A_PYTHON_SDK_VERSION'],
         },
-        's1_dependency': {'promotion': s1_status, 'satisfied': s1_status == 'PASS', 'source': str(args.s1_promotion)},
+        's1_dependency': {
+            'promotion': s1_status,
+            'satisfied': s1_status == 'PASS',
+            'source': str(args.s1_promotion),
+        },
         'must_requirement_ids': sorted(ids['direct']),
         'legs': {
-            name: {'report': str(path), 'must_count': len(must[name]), 'must_compatibility': (reports[name].get('summary') or {}).get('must_compatibility')}
+            name: {
+                'report': str(path),
+                'must_count': len(must[name]),
+                'must_compatibility': (reports[name].get('summary') or {}).get('must_compatibility'),
+            }
             for name, path in [('direct', args.direct), ('spiffe', args.spiffe), ('aie', args.aie)]
         },
         'parity': {

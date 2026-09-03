@@ -15,7 +15,13 @@ PREPARE = ROOT / 'interop/s2/scripts/prepare_official_a2a.sh'
 def _report(*, req_ids=('CORE-SEND-001', 'CORE-TASK-001'), capability=True):
     per_requirement = {}
     for req_id in req_ids:
-        per_requirement[req_id] = {'level': 'MUST', 'status': 'PASS', 'transports': {'grpc': 'PASS', 'jsonrpc': 'PASS', 'http_json': 'PASS'}, 'errors': [], 'test_ids': [f'test::{req_id}']}
+        per_requirement[req_id] = {
+            'level': 'MUST',
+            'status': 'PASS',
+            'transports': {'grpc': 'PASS', 'jsonrpc': 'PASS', 'http_json': 'PASS'},
+            'errors': [],
+            'test_ids': [f'test::{req_id}'],
+        }
     return {
         'summary': {'spec_version': '1.0', 'must_compatibility': '100.0%'},
         'per_requirement': per_requirement,
@@ -24,18 +30,37 @@ def _report(*, req_ids=('CORE-SEND-001', 'CORE-TASK-001'), capability=True):
             'jsonrpc': {'total': 2, 'passed': 2, 'failed': 0, 'skipped': 0},
             'http_json': {'total': 2, 'passed': 2, 'failed': 0, 'skipped': 0},
         },
-        'agent_card': {'protocolVersion': '1.0', 'capabilities': {'streaming': capability}, 'defaultInputModes': ['text/plain'], 'defaultOutputModes': ['text/plain'], 'skills': [{'id': 'echo', 'name': 'Echo'}], 'url': 'http://example.invalid'},
+        'agent_card': {
+            'protocolVersion': '1.0',
+            'capabilities': {'streaming': capability},
+            'defaultInputModes': ['text/plain'],
+            'defaultOutputModes': ['text/plain'],
+            'skills': [{'id': 'echo', 'name': 'Echo'}],
+            'url': 'http://example.invalid',
+        },
     }
 
 
 def _run(tmp_path, *, direct=None, spiffe=None, aie=None, s1='PASS'):
-    direct = direct or _report(); spiffe = spiffe or _report(); aie = aie or _report()
+    direct = direct or _report()
+    spiffe = spiffe or _report()
+    aie = aie or _report()
     paths = {}
     for name, report in [('direct', direct), ('spiffe', spiffe), ('aie', aie)]:
-        path = tmp_path / f'{name}.json'; path.write_text(json.dumps(report), encoding='utf-8'); paths[name] = path
-    s1_path = tmp_path / 's1.json'; s1_path.write_text(json.dumps({'promotion': s1}), encoding='utf-8')
+        path = tmp_path / f'{name}.json'
+        path.write_text(json.dumps(report), encoding='utf-8')
+        paths[name] = path
+    s1_path = tmp_path / 's1.json'
+    s1_path.write_text(json.dumps({'promotion': s1}), encoding='utf-8')
     out = tmp_path / 'AIE_S2_A2A_INTEROP.json'
-    result = subprocess.run([sys.executable, str(COLLECTOR), '--direct', str(paths['direct']), '--spiffe', str(paths['spiffe']), '--aie', str(paths['aie']), '--s1-promotion', str(s1_path), '--output', str(out)], text=True, capture_output=True)
+    result = subprocess.run([
+        sys.executable, str(COLLECTOR),
+        '--direct', str(paths['direct']),
+        '--spiffe', str(paths['spiffe']),
+        '--aie', str(paths['aie']),
+        '--s1-promotion', str(s1_path),
+        '--output', str(out),
+    ], text=True, capture_output=True)
     return result, json.loads(out.read_text()) if out.exists() else None
 
 
@@ -104,7 +129,8 @@ def test_collector_fails_closed_on_empty_must_set(tmp_path):
 
 
 def test_collector_fails_when_official_test_ids_differ_even_if_status_matches(tmp_path):
-    altered = _report(); altered['per_requirement']['CORE-SEND-001']['test_ids'] = ['test::different-official-case']
+    altered = _report()
+    altered['per_requirement']['CORE-SEND-001']['test_ids'] = ['test::different-official-case']
     result, output = _run(tmp_path, spiffe=altered, s1='PASS')
     assert result.returncode != 0
     assert output['promotion'] == 'FAIL'
@@ -112,7 +138,8 @@ def test_collector_fails_when_official_test_ids_differ_even_if_status_matches(tm
 
 
 def test_collector_requires_all_three_official_transports_on_each_leg(tmp_path):
-    missing_grpc = _report(); missing_grpc['per_transport'].pop('grpc')
+    missing_grpc = _report()
+    missing_grpc['per_transport'].pop('grpc')
     result, output = _run(tmp_path, aie=missing_grpc, s1='PASS')
     assert result.returncode != 0
     assert output['promotion'] == 'FAIL'
