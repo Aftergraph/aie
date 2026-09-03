@@ -11,6 +11,9 @@ mkdir -p "$AIE_S1_RESULTS" "$AIE_S1_DEPS"
 cleanup() {
   mkdir -p "$AIE_S1_RESULTS/lab-logs"
   if [[ -d "$AIE_S1_STATE/logs" ]]; then cp -a "$AIE_S1_STATE/logs/." "$AIE_S1_RESULTS/lab-logs/" 2>/dev/null || true; fi
+  # Proof runs as root via sudo(8) but the checkout is owned by the runner
+  # user; root-owned result files break the next run's `git clean`.
+  if [[ -n "${SUDO_USER:-}" ]]; then chown -R "$SUDO_USER" "$AIE_S1_RESULTS" 2>/dev/null || true; fi
   "$HERE/scripts/stop_lab.sh" || true
 }
 trap cleanup EXIT
