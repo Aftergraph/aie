@@ -9,7 +9,9 @@
 
 ## Proven locally
 
-- 144/144 tests on the current S2 A2A-preparation tree
+- repository baseline: 131/131 tests passing before the S2 preparation slice
+- current S2 A2A-preparation targeted suite: 13/13 tests passing after provenance and S1-attestation hardening
+- an earlier integrated S2 review tree reached 144/144; after scratch recovery the current PR head is reported conservatively as baseline + targeted evidence rather than claiming a fresh full-suite rerun
 - two independent runtime paths for C0/D1/T1/F1 semantics
 - durable replay, budget, revocation, and evidence state
 - strict X.509-SVID identity validation and Workload API consumption
