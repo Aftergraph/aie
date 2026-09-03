@@ -41,7 +41,38 @@ def _report(*, req_ids=('CORE-SEND-001', 'CORE-TASK-001'), capability=True):
     }
 
 
-def _run(tmp_path, *, direct=None, spiffe=None, aie=None, s1='PASS'):
+def _s1_attestation(*, promotion='PASS'):
+    check_ids = ['MCP-CONFORMANCE-001', 'MCP-CONFORMANCE-002']
+    return {
+        'profile': 'AIE Draft 0.4-S1.1 External CI Closure',
+        'promotion': promotion,
+        'mcp_revision': '2026-07-28',
+        'live_spire': 'PASS' if promotion == 'PASS' else 'BLOCKED',
+        'external_gates': {
+            'svid_rotation_live': 'PASS' if promotion == 'PASS' else 'BLOCKED',
+            'trust_bundle_rotation_live': 'PASS' if promotion == 'PASS' else 'BLOCKED',
+            'old_trust_rejected': 'PASS' if promotion == 'PASS' else 'BLOCKED',
+            'new_trust_works': 'PASS' if promotion == 'PASS' else 'BLOCKED',
+        },
+        'legs': {
+            name: {
+                'status': 'PASS' if promotion == 'PASS' else 'BLOCKED',
+                'check_ids': check_ids,
+                'checks_total': len(check_ids),
+            }
+            for name in ('direct', 'bridge', 'aie')
+        },
+        'semantic_delta': [],
+        'provenance': {
+            'provider': 'github-actions',
+            'run_id': '33730332744',
+            'git_sha': 'a' * 40,
+            'workflow_ref': '.github/workflows/aie-v04-s1-self-hosted.yml@refs/heads/main',
+        },
+    }
+
+
+def _run(tmp_path, *, direct=None, spiffe=None, aie=None, s1='PASS', s1_report=None):
     direct = direct or _report()
     spiffe = spiffe or _report()
     aie = aie or _report()
@@ -51,7 +82,8 @@ def _run(tmp_path, *, direct=None, spiffe=None, aie=None, s1='PASS'):
         path.write_text(json.dumps(report), encoding='utf-8')
         paths[name] = path
     s1_path = tmp_path / 's1.json'
-    s1_path.write_text(json.dumps({'promotion': s1}), encoding='utf-8')
+    s1_payload = s1_report if s1_report is not None else _s1_attestation(promotion=s1)
+    s1_path.write_text(json.dumps(s1_payload), encoding='utf-8')
     out = tmp_path / 'AIE_S2_A2A_INTEROP.json'
     result = subprocess.run([
         sys.executable, str(COLLECTOR),
@@ -77,6 +109,7 @@ def test_collector_blocks_promotion_when_s1_dependency_is_not_pass(tmp_path):
     result, output = _run(tmp_path, s1='BLOCKED_EXTERNAL_RUNTIME')
     assert result.returncode == 0
     assert output['promotion'] == 'BLOCKED_BY_S1'
+    assert output['s1_dependency']['satisfied'] is False
     assert output['parity']['semantic_delta'] == []
     assert output['must_requirement_ids'] == ['CORE-SEND-001', 'CORE-TASK-001']
 
@@ -85,6 +118,7 @@ def test_collector_promotes_only_when_s1_passes_and_all_must_semantics_match(tmp
     result, output = _run(tmp_path, s1='PASS')
     assert result.returncode == 0
     assert output['promotion'] == 'PASS'
+    assert output['s1_dependency']['satisfied'] is True
     assert output['parity']['ids_equal'] is True
     assert output['parity']['statuses_equal'] is True
     assert output['parity']['agent_card_semantics_equal'] is True
@@ -153,7 +187,30 @@ def test_preparer_clones_and_installs_exact_official_tck_commit_in_isolated_venv
     assert 'A2A_TCK_COMMIT' in text
     assert 'git clone' in text
     assert 'git checkout --detach "$A2A_TCK_COMMIT"' in text
-    assert 'python3 -m venv' in text
     assert '.venv/bin/python' in text
     assert 'A2A_TCK_VERSION' in text
     assert 'pyproject.toml' in text
+
+
+def test_preparer_verifies_existing_checkout_uses_official_origin():
+    text = PREPARE.read_text(encoding='utf-8')
+    assert 'git -C "$AIE_S2_TCK_DIR" remote get-url origin' in text
+    assert '[[ "$ORIGIN" == "$A2A_TCK_REPO" ]]' in text
+
+
+def test_preparer_uses_upstream_frozen_uv_lock_without_drifting_pip_resolution():
+    text = PREPARE.read_text(encoding='utf-8')
+    assert 'uv.lock' in text
+    assert 'uv sync --frozen --no-dev' in text
+    assert 'pip install --upgrade pip' not in text
+    assert 'pip install -e .' not in text
+
+
+def test_collector_rejects_bare_forged_s1_pass_attestation(tmp_path):
+    result, output = _run(tmp_path, s1_report={'promotion': 'PASS'})
+    assert result.returncode == 0
+    assert output['promotion'] == 'BLOCKED_BY_S1'
+    assert output['s1_dependency']['satisfied'] is False
+    assert 'profile' in output['s1_dependency']['validation_errors']
+    assert 'live_spire' in output['s1_dependency']['validation_errors']
+    assert 'provenance_provider' in output['s1_dependency']['validation_errors']
