@@ -72,7 +72,7 @@ def _s1_attestation(*, promotion='PASS'):
     }
 
 
-def _run(tmp_path, *, direct=None, spiffe=None, aie=None, s1='PASS', s1_report=None):
+def _run(tmp_path, *, direct=None, spiffe=None, aie=None, s1='PASS', s1_report=None, exit_codes=None):
     direct = direct or _report()
     spiffe = spiffe or _report()
     aie = aie or _report()
@@ -81,6 +81,12 @@ def _run(tmp_path, *, direct=None, spiffe=None, aie=None, s1='PASS', s1_report=N
         path = tmp_path / f'{name}.json'
         path.write_text(json.dumps(report), encoding='utf-8')
         paths[name] = path
+    exit_codes = exit_codes or {'direct': 0, 'spiffe': 0, 'aie': 0}
+    exit_paths = {}
+    for name, value in exit_codes.items():
+        path = tmp_path / f'{name}.exit_code.txt'
+        path.write_text(f'{value}\n', encoding='utf-8')
+        exit_paths[name] = path
     s1_path = tmp_path / 's1.json'
     s1_payload = s1_report if s1_report is not None else _s1_attestation(promotion=s1)
     s1_path.write_text(json.dumps(s1_payload), encoding='utf-8')
@@ -90,6 +96,9 @@ def _run(tmp_path, *, direct=None, spiffe=None, aie=None, s1='PASS', s1_report=N
         '--direct', str(paths['direct']),
         '--spiffe', str(paths['spiffe']),
         '--aie', str(paths['aie']),
+        '--direct-exit-code', str(exit_paths['direct']),
+        '--spiffe-exit-code', str(exit_paths['spiffe']),
+        '--aie-exit-code', str(exit_paths['aie']),
         '--s1-promotion', str(s1_path),
         '--output', str(out),
     ], text=True, capture_output=True)
@@ -214,3 +223,30 @@ def test_collector_rejects_bare_forged_s1_pass_attestation(tmp_path):
     assert 'profile' in output['s1_dependency']['validation_errors']
     assert 'live_spire' in output['s1_dependency']['validation_errors']
     assert 'provenance_provider' in output['s1_dependency']['validation_errors']
+
+
+def test_collector_blocks_malformed_s1_checks_total_instead_of_crashing(tmp_path):
+    s1 = _s1_attestation()
+    s1['legs']['bridge']['checks_total'] = 'not-an-int'
+    result, output = _run(tmp_path, s1_report=s1)
+    assert result.returncode == 0
+    assert output['promotion'] == 'BLOCKED_BY_S1'
+    assert output['s1_dependency']['satisfied'] is False
+    assert 'leg_checks_total:bridge' in output['s1_dependency']['validation_errors']
+
+
+def test_collector_requires_explicit_zero_semantic_delta_in_s1(tmp_path):
+    s1 = _s1_attestation()
+    s1.pop('semantic_delta')
+    result, output = _run(tmp_path, s1_report=s1)
+    assert result.returncode == 0
+    assert output['promotion'] == 'BLOCKED_BY_S1'
+    assert output['s1_dependency']['satisfied'] is False
+    assert 'semantic_delta' in output['s1_dependency']['validation_errors']
+
+
+def test_collector_fails_when_any_official_tck_process_exits_nonzero(tmp_path):
+    result, output = _run(tmp_path, s1='PASS', exit_codes={'direct': 0, 'spiffe': 0, 'aie': 2})
+    assert result.returncode != 0
+    assert output['promotion'] == 'FAIL'
+    assert any('tck-exit-code:aie:2' in item for item in output['parity']['semantic_delta'])
