@@ -11,6 +11,24 @@ S2 proves that the AIE authority layer preserves official A2A 1.0 semantics acro
 
 The official TCK runs gRPC, JSON-RPC and HTTP+JSON when no transport filter is supplied. S2 runs only the TCK's MUST-level requirements for the promotion comparison.
 
+## Runtime transport coverage
+
+The reference gateway currently has two distinct A2A binding surfaces:
+
+| Binding | Current implementation status | External TCK proof |
+|---|---|---|
+| JSON-RPC 1.0 | existing admission + forwarding | not yet promoted |
+| HTTP+JSON 1.0 non-streaming | `POST /message:send`, `GET /tasks`, `GET /tasks/{id}`, `POST /tasks/{id}:cancel`; original method/path/query/body preserved upstream | not yet run externally |
+| HTTP+JSON streaming/SSE | not implemented in this slice (`/message:stream`, `/tasks/{id}:subscribe`) | not claimed |
+| HTTP+JSON push-notification resources | not implemented in this slice | not claimed |
+| gRPC 1.0 | not implemented | not claimed |
+
+HTTP+JSON tenant routing is treated as an authority boundary. When a tenant-prefixed REST route is used, the tenant is canonicalized into the AIE resource (`a2a://tenant/<tenant>/...`). For body-carrying operations, path and request-body tenant values must agree. A non-tenant lease cannot authorize a tenant-scoped request.
+
+Repeatable HTTP+JSON reads receive per-request action identifiers so ordinary GETs do not collide with replay/budget ledgers. Mutating send/cancel operations use deterministic identities and remain replay-protected.
+
+This runtime implementation is **implementer evidence**, not official A2A interoperability evidence. S2 promotion still requires the raw official TCK reports across all required transports and all three direct/SPIFFE/AIE legs.
+
 ## Promotion contract
 
 `collect_report.py` compares:
