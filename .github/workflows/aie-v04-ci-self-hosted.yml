@@ -92,21 +92,9 @@ jobs:
           python -m pip freeze > "$AIE_CI_RESULTS/requirements-${{ matrix.python }}.txt" || true
           python --version > "$AIE_CI_RESULTS/python-${{ matrix.python }}.txt"
 
-      - name: Publish commit status (in-house)
-        if: always()
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          CI_TARGET_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          if [ "${{ job.status }}" = "success" ]; then
-            STATE=success; DESC="unit/contract tests pass on ${{ matrix.python }}"
-          else
-            STATE=failure; DESC="unit/contract tests FAILED on ${{ matrix.python }}"
-          fi
-          python tools/ci_status_publisher.py \
-            "$STATE" \
-            "ci/test (${{ matrix.python }})" \
-            "$DESC" \
-            || echo "ci_status_publisher: non-fatal failure (gh auth or API issue), continuing"
+      # Note: the in-house workflow's job result already publishes
+      # a commit status under the "test (<py>)" context automatically
+      # (the job's own check). tools/ci_status_publisher.py is kept
+      # as a standalone tool for ad-hoc / manual status posts from
+      # outside a GH Actions run — see tests/test_ci_status_publisher.py
+      # and docs/inhouse-ci-research.md.

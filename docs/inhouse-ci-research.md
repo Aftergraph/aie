@@ -130,39 +130,34 @@ A workflow that runs on every push to a PR branch AND every push to
    `gh api` shim — the shim lives in `tools/ci_status_publisher.py` and
    is the only piece that needs to work even when GH Actions is broken.
 
-### 3.3 Status-publisher shim
+### 3.3 Status-publisher shim — kept as a standalone tool, not invoked from the workflow
 
 ```python
 # tools/ci_status_publisher.py — minimal GitHub commit-status poster
-# invoked at the end of every CI run. Uses the runner's existing
-# `gh` auth (the runner was registered with a GitHub App or PAT).
-# Survives GH Actions billing lock because it doesn't go through
-# the Actions pipeline; it hits the REST API directly.
-import json, os, subprocess, sys, urllib.parse
+# invoked from outside a GitHub Actions run (local scripts, ad-hoc
+# canary updates). The workflow's own job status already publishes
+# a check under the "test (<py>)" context automatically, so the
+# workflow does not need to call this itself.
+import os, subprocess, sys
 state, context, desc = sys.argv[1], sys.argv[2], sys.argv[3]
 sha = os.environ["GITHUB_SHA"]
 repo = os.environ["GITHUB_REPOSITORY"]
 target_url = os.environ.get("CI_TARGET_URL", "")
-post = {
-  "state": state,                  # "success" | "failure" | "pending" | "error"
-  "context": context,              # e.g. "ci/test (3.12)"
-  "description": desc[:140],
-  "target_url": target_url,
-}
 subprocess.run(
   ["gh", "api", f"repos/{repo}/statuses/{sha}",
-   "-X", "POST", "-f", f"state={post['state']}",
-   "-f", f"context={post['context']}",
-   "-f", f"description={post['description']}",
-   "-f", f"target_url={post['target_url']}"],
+   "-X", "POST", "-f", f"state={state}",
+   "-f", f"context={context}",
+   "-f", f"description={desc[:140]}",
+   "-f", f"target_url={target_url}"],
   check=True)
 ```
 
-This is a single ~25-line script. It runs from inside the CI job after
-pytest, calls `gh api` which the runner already has, and lights up the
-PR check list. The `ci.yml` GH Actions workflow becomes the **fallback
-** (used when GH Actions billing is healthy); the in-house workflow is
-the **primary**.
+This is a single ~85-line script. The in-house workflow itself does
+**not** invoke it — the workflow job result already becomes a
+commit-status check on its own. The publisher is for cases where
+CI runs outside GH Actions (Jonas's Windows box, a manual canary
+from the VDS, a future webhook) and we still want the result to
+show up on the PR conversation.
 
 ### 3.4 Branch protection relaxation (governance, not auto)
 
