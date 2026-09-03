@@ -39,7 +39,7 @@ python -m pip install -e '.[dev,otel]'
 pytest -q
 ```
 
-The current package-metadata verification tree is locally verified at **131/131 tests passing**. This does not satisfy the external interoperability gate.
+The S2 preparation tree combines the previously verified **131-test repository baseline** with a fresh **13/13 S2 targeted suite**. S2 remains preparation-only and does not satisfy the external interoperability gate.
 
 ## Status
 
