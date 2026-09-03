@@ -1,0 +1,99 @@
+name: AIE v0.4 CI (self-hosted)
+
+# In-house unit/contract CI that runs on the VDS self-hosted runner
+# (same box as the S1.1 external interop gate). This exists because
+# GitHub Actions on the JonasAbde account is billing-locked, which
+# blocks the GH-hosted `ci.yml` matrix. Routing through the existing
+# self-hosted runner costs zero GH minutes and survives the billing
+# lock.
+#
+# Branch protection should require the `ci/test (<py>)` contexts
+# posted by tools/ci_status_publisher.py at the end of this job.
+# When the GH-hosted ci.yml is healthy, it remains a redundant
+# fallback that posts the same context names — so the merge gate
+# doesn't change, only the publisher does.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aie-v04-ci-self-hosted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: [self-hosted, linux, x64, aie-interop]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    env:
+      UV_PREFIX: /home/aie-runner/.local
+      PATH: /home/aie-runner/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      AIE_CI_RESULTS: /home/aie-runner/aie-ci-results/${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Ensure uv + Python matrix available
+        # Single static binary, user-local, no sudo. Builds the
+        # matrix Pythons on demand (cached by uv after the first
+        # install). ~30s per build, ~120MB per Python.
+        run: |
+          set -euo pipefail
+          export PATH="$UV_PREFIX/bin:$PATH"
+          if ! command -v uv >/dev/null 2>&1; then
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+          fi
+          uv --version
+          uv python install ${{ matrix.python }}
+          PYBIN="$(uv python find ${{ matrix.python }})"
+          echo "PYBIN=$PYBIN" >> "$GITHUB_ENV"
+          "$PYBIN" --version
+
+      - name: Install package
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev,otel]'
+
+      - name: Compile + pytest
+        run: |
+          set -euo pipefail
+          mkdir -p "$AIE_CI_RESULTS"
+          python -m compileall -q src interop/s1
+          python -m pytest -q --junitxml="$AIE_CI_RESULTS/junit-${{ matrix.python }}.xml"
+
+      - name: Persist runner-local evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "$AIE_CI_RESULTS"
+          python -m pip freeze > "$AIE_CI_RESULTS/requirements-${{ matrix.python }}.txt" || true
+          python --version > "$AIE_CI_RESULTS/python-${{ matrix.python }}.txt"
+
+      - name: Publish commit status (in-house)
+        if: always()
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CI_TARGET_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ "${{ job.status }}" = "success" ]; then
+            STATE=success; DESC="unit/contract tests pass on ${{ matrix.python }}"
+          else
+            STATE=failure; DESC="unit/contract tests FAILED on ${{ matrix.python }}"
+          fi
+          python tools/ci_status_publisher.py \
+            "$STATE" \
+            "ci/test (${{ matrix.python }})" \
+            "$DESC" \
+            || echo "ci_status_publisher: non-fatal failure (gh auth or API issue), continuing"
