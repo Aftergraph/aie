@@ -50,6 +50,14 @@ export AIE_S1_MCP_SERVER_CMD="cd '$MCP_SDK' && '$UV' run --frozen mcp-everything
 rm -rf "$AIE_S1_STATE" "$AIE_S1_RESULTS/direct" "$AIE_S1_RESULTS/bridge" "$AIE_S1_RESULTS/aie" "$AIE_S1_RESULTS/rotation"
 mkdir -p "$AIE_S1_STATE" "$AIE_S1_RESULTS"
 
+# Self-healing start: previous runs leak servers (pidfiles capture runuser/bash
+# wrappers and rm -rf above destroys the only handles, so plain kill orphans
+# the real processes). Sweep strays NOW, before anything of this run starts:
+# otherwise this run's components crash on EADDRINUSE while traffic is silently
+# served by stale code. Placed here and not in start_components because that
+# runs after start_spire, whose fresh processes must survive.
+"$HERE/scripts/stop_lab.sh" || true
+
 "$HERE/scripts/start_spire.sh"
 "$HERE/scripts/register_workloads.sh"
 
