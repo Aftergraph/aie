@@ -20,7 +20,7 @@ rm -rf "$AIE_S1_VENV"
 export AIE_S1_PYTHON="$AIE_S1_VENV/bin/python"
 "$AIE_S1_VENV/bin/python" -m pip install --upgrade pip
 "$AIE_S1_VENV/bin/python" -m pip install -e '.[dev,otel]'
-"$AIE_S1_VENV/bin/python" -m pip install 'uv==0.8.17'
+"$AIE_S1_VENV/bin/python" -m pip install 'uv>=0.9.5'
 
 export AIE_S1_UV="$AIE_S1_VENV/bin/uv"
 export AIE_S1_NPX=$(command -v npx)
