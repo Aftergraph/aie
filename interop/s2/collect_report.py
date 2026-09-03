@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+HERE = Path(__file__).resolve().parent
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def load_versions() -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw in (HERE / 'versions.env').read_text(encoding='utf-8').splitlines():
+        raw = raw.strip()
+        if not raw or raw.startswith('#'):
+            continue
+        key, value = raw.split('=', 1)
+        values[key] = value
+    return values
+
+
+def must_requirements(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    requirements = report.get('per_requirement') or {}
+    return {
+        str(req_id): dict(entry)
+        for req_id, entry in requirements.items()
+        if str((entry or {}).get('level', '')).upper() == 'MUST'
+    }
+
+
+def card_semantics(report: dict[str, Any]) -> dict[str, Any]:
+    card = report.get('agent_card') or {}
+    return {
+        'protocolVersion': card.get('protocolVersion'),
+        'capabilities': card.get('capabilities'),
+        'defaultInputModes': card.get('defaultInputModes'),
+        'defaultOutputModes': card.get('defaultOutputModes'),
+        'skills': card.get('skills'),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description='Aggregate official A2A TCK parity evidence for AIE S2.')
+    parser.add_argument('--direct', type=Path, required=True)
+    parser.add_argument('--spiffe', type=Path, required=True)
+    parser.add_argument('--aie', type=Path, required=True)
+    parser.add_argument('--s1-promotion', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args()
+
+    reports = {'direct': load_json(args.direct), 'spiffe': load_json(args.spiffe), 'aie': load_json(args.aie)}
+    must = {name: must_requirements(report) for name, report in reports.items()}
+    ids = {name: set(values) for name, values in must.items()}
+    ids_equal = ids['direct'] == ids['spiffe'] == ids['aie']
+
+    semantic_delta: list[str] = []
+    if not ids['direct']:
+        semantic_delta.append('empty-must-set:direct')
+    if not ids_equal:
+        semantic_delta.append('requirement-id-set:' + json.dumps({name: sorted(value) for name, value in ids.items()}, sort_keys=True))
+
+    statuses_equal = True
+    for req_id in sorted(set().union(*ids.values())):
+        entries = [must[name].get(req_id) for name in ('direct', 'spiffe', 'aie')]
+        if any(entry is None for entry in entries):
+            statuses_equal = False
+            continue
+        signature = [
+            {'status': entry.get('status'), 'transports': entry.get('transports') or {}, 'test_ids': sorted(entry.get('test_ids') or [])}
+            for entry in entries
+        ]
+        if not (signature[0] == signature[1] == signature[2]):
+            statuses_equal = False
+            semantic_delta.append(f'requirement-semantics:{req_id}:{json.dumps(signature, sort_keys=True)}')
+
+    direct_all_pass = True
+    for req_id, entry in sorted(must['direct'].items()):
+        if str(entry.get('status', '')).upper() != 'PASS':
+            direct_all_pass = False
+            semantic_delta.append(f'direct-must-not-pass:{req_id}:{entry.get("status")}')
+
+    required_transports = {'grpc', 'jsonrpc', 'http_json'}
+    transport_coverage = True
+    transport_summaries: dict[str, dict[str, Any]] = {}
+    for name, report in reports.items():
+        per_transport = report.get('per_transport') or {}
+        transport_summaries[name] = {transport: per_transport.get(transport) for transport in sorted(required_transports)}
+        missing = sorted(required_transports - set(per_transport))
+        empty = sorted(transport for transport in required_transports if transport in per_transport and int((per_transport.get(transport) or {}).get('total', 0)) <= 0)
+        if missing or empty:
+            transport_coverage = False
+            semantic_delta.append(f'transport-coverage:{name}:missing={missing}:empty={empty}')
+
+    card_signatures = {name: card_semantics(report) for name, report in reports.items()}
+    cards_equal = card_signatures['direct'] == card_signatures['spiffe'] == card_signatures['aie']
+    if not cards_equal:
+        semantic_delta.append('agent-card-semantics:' + json.dumps(card_signatures, sort_keys=True))
+
+    s1 = load_json(args.s1_promotion)
+    s1_status = str(s1.get('promotion') or '')
+    if semantic_delta or not direct_all_pass or not statuses_equal:
+        promotion = 'FAIL'
+    elif s1_status != 'PASS':
+        promotion = 'BLOCKED_BY_S1'
+    else:
+        promotion = 'PASS'
+
+    versions = load_versions()
+    output = {
+        'version': 'aie-s2-a2a-interop/0.1',
+        'generated_at': datetime.now(timezone.utc).isoformat(),
+        'provenance': {
+            'a2a_protocol_version': versions['A2A_PROTOCOL_VERSION'],
+            'a2a_tck_version': versions['A2A_TCK_VERSION'],
+            'a2a_tck_commit': versions['A2A_TCK_COMMIT'],
+            'a2a_tck_repo': versions['A2A_TCK_REPO'],
+            'a2a_python_sdk_reference_version': versions['A2A_PYTHON_SDK_VERSION'],
+        },
+        's1_dependency': {'promotion': s1_status, 'satisfied': s1_status == 'PASS', 'source': str(args.s1_promotion)},
+        'must_requirement_ids': sorted(ids['direct']),
+        'legs': {
+            name: {'report': str(path), 'must_count': len(must[name]), 'must_compatibility': (reports[name].get('summary') or {}).get('must_compatibility')}
+            for name, path in [('direct', args.direct), ('spiffe', args.spiffe), ('aie', args.aie)]
+        },
+        'parity': {
+            'ids_equal': ids_equal,
+            'statuses_equal': statuses_equal,
+            'agent_card_semantics_equal': cards_equal,
+            'transport_coverage': transport_coverage,
+            'transport_summaries': transport_summaries,
+            'semantic_delta': semantic_delta,
+        },
+        'promotion': promotion,
+    }
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(output, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+    print(json.dumps({'promotion': promotion, 'output': str(args.output)}))
+    return 1 if promotion == 'FAIL' else 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

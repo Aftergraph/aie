@@ -9,7 +9,7 @@
 
 ## Proven locally
 
-- 131/131 tests on the current package-metadata tree
+- 141/141 tests on the current S2 A2A-preparation tree
 - two independent runtime paths for C0/D1/T1/F1 semantics
 - durable replay, budget, revocation, and evidence state
 - strict X.509-SVID identity validation and Workload API consumption
@@ -23,6 +23,7 @@
 - fail-safe rollback/revocation of the dedicated runner sudoers grant
 - weekly Dependabot coverage for Python and GitHub Actions dependencies
 - wheel metadata emits SPDX `Apache-2.0`, bundled `LICENSE`, Markdown README, author, keywords, and canonical project URLs
+- official A2A TCK 1.0.0 preparation harness pinned to commit `263b9cfa…`, with direct/SPIFFE/AIE MUST parity comparison hard-gated on S1
 
 ## External blockers
 
