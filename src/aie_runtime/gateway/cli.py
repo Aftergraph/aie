@@ -171,7 +171,7 @@ def build_server_options_from_config(config_path: str | Path) -> dict[str, Any]:
             )
 
     for protocol, upstream in config.get("upstreams", {}).items():
-        if protocol not in {"mcp", "a2a"}:
+        if protocol not in {"mcp", "a2a", "a2a_http_json"}:
             raise ValueError(f"unsupported upstream protocol: {protocol}")
         upstream_tls = upstream.get("tls")
         dynamic_tls = bool(upstream_tls and upstream_tls.get("source") == "workload_api" and workload_tls_provider is not None)
