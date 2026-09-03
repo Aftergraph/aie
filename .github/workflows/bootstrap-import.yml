@@ -2,30 +2,25 @@ name: Bootstrap AIE source tree
 
 on:
   push:
-    branches:
-      - main
-      - bootstrap/aie-v0.4-s1.1
+    branches: [main]
     paths:
       - .bootstrap/source.zip
       - .github/workflows/bootstrap-import.yml
   issues:
-    types: [opened]
+    types: [opened, reopened]
   workflow_dispatch:
 
 permissions:
   contents: write
-  issues: read
 
 concurrency:
-  group: aie-bootstrap-${{ github.ref }}
+  group: aie-bootstrap
   cancel-in-progress: false
 
 jobs:
   import:
-    if: >-
-      github.actor != 'github-actions[bot]' &&
-      (github.event_name != 'issues' || github.event.issue.title == 'bootstrap: materialize AIE v0.4-S1.1')
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
