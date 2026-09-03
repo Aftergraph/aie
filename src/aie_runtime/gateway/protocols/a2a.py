@@ -26,17 +26,23 @@ def normalize_a2a_request(headers: Mapping[str, str], body: Mapping[str, Any]) -
         raise ProtocolError("AIE-PROTO-002", "A2A JSON-RPC method and id are required")
 
     params = body.get("params") if isinstance(body.get("params"), Mapping) else {}
+    tenant = _header(headers, "AIE-A2A-Tenant")
+    tenant_prefix = f"tenant/{tenant}/" if tenant else ""
     if method in {"message/send", "SendMessage"}:
         message = params.get("message") if isinstance(params.get("message"), Mapping) else {}
         message_id = str(message.get("messageId") or message.get("message_id") or request_id)
         capability = "a2a.message.send"
-        resource = f"a2a://message/{message_id}"
+        resource = f"a2a://{tenant_prefix}message/{message_id}"
         subject_id = message_id
+    elif method == "tasks/list":
+        capability = "a2a.task.list"
+        resource = f"a2a://{tenant_prefix}task"
+        subject_id = None
     elif method.startswith("tasks/"):
         op = method.split("/", 1)[1].replace("/", ".")
         task_id = str(params.get("id") or params.get("taskId") or request_id)
         capability = f"a2a.task.{op}"
-        resource = f"a2a://task/{task_id}"
+        resource = f"a2a://{tenant_prefix}task/{task_id}"
         subject_id = task_id
     else:
         normalized_method = method.replace("/", ".")
