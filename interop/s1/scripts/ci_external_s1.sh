@@ -30,7 +30,11 @@ git clone --depth 1 --branch "$MCP_PYTHON_SDK_TAG" https://github.com/modelconte
   "$UV" sync --frozen --all-extras --package mcp-everything-server
   "$UV" sync --frozen --all-extras --package mcp --inexact
 )
-export AIE_S1_MCP_SERVER_CMD="cd '$MCP_SDK' && '$UV' run --frozen mcp-everything-server --port 3000"
+# AIE_S1_MCP_PORT overrides the official MCP everything-server listener port
+# (default 3000). Useful when 3000 is occupied by another long-lived service
+# on the dedicated host; the AIE protocol itself is port-agnostic.
+export AIE_S1_MCP_PORT=${AIE_S1_MCP_PORT:-3000}
+export AIE_S1_MCP_SERVER_CMD="cd '$MCP_SDK' && '$UV' run --frozen mcp-everything-server --port '$AIE_S1_MCP_PORT'"
 
 rm -rf "$AIE_S1_STATE" "$AIE_S1_RESULTS/direct" "$AIE_S1_RESULTS/bridge" "$AIE_S1_RESULTS/aie" "$AIE_S1_RESULTS/rotation"
 mkdir -p "$AIE_S1_STATE" "$AIE_S1_RESULTS"
@@ -40,9 +44,10 @@ mkdir -p "$AIE_S1_STATE" "$AIE_S1_RESULTS"
 "$HERE/scripts/start_components.sh"
 
 # Give listeners a bounded readiness window before mutating trust state.
-"$AIE_S1_PYTHON" - <<'PY'
-import socket, time
-ports=(3000,18443,18444,19080,19081)
+"$AIE_S1_PYTHON" - "$AIE_S1_MCP_PORT" <<'PY'
+import socket, sys, time
+mcp_port = int(sys.argv[1])
+ports = (mcp_port, 18443, 18444, 19080, 19081)
 deadline=time.monotonic()+20
 for port in ports:
     while True:
