@@ -5,6 +5,11 @@ export AIE_S1_STATE=${AIE_S1_STATE:-/tmp/aie-v04-s1}
 export AIE_S1_MCP_PORT=${AIE_S1_MCP_PORT:-3000}
 : "${AIE_S1_PYTHON:?Set AIE_S1_PYTHON to Python with this wheel installed}"
 : "${AIE_S1_MCP_SERVER_CMD:?Set to official MCP Python SDK v2.0.0 everything-server command}"
+# Self-healing start: a previous run may have leaked servers (pidfiles capture
+# runuser/bash wrappers, so plain kill orphans the real processes). Sweep
+# strays before binding, otherwise this run dies on EADDRINUSE and silently
+# tests against stale code.
+"$HERE/scripts/stop_lab.sh" || true
 mkdir -p "$AIE_S1_STATE/logs" "$AIE_S1_STATE/gateway-data" "$AIE_S1_STATE/config"
 chown aie-s1-gateway "$AIE_S1_STATE/gateway-data"
 run_as() {

@@ -11,6 +11,9 @@ mkdir -p "$AIE_S1_RESULTS" "$AIE_S1_DEPS"
 cleanup() {
   mkdir -p "$AIE_S1_RESULTS/lab-logs"
   if [[ -d "$AIE_S1_STATE/logs" ]]; then cp -a "$AIE_S1_STATE/logs/." "$AIE_S1_RESULTS/lab-logs/" 2>/dev/null || true; fi
+  # Archive the gateway replay/audit store before the next run wipes state;
+  # per-run JSON-RPC id reuse makes cross-run rows indistinguishable.
+  if [[ -f "$AIE_S1_STATE/gateway-data/gateway.sqlite3" ]]; then cp -a "$AIE_S1_STATE/gateway-data/gateway.sqlite3" "$AIE_S1_RESULTS/lab-logs/" 2>/dev/null || true; fi
   # Proof runs as root via sudo(8) but the checkout is owned by the runner
   # user; root-owned result files, __pycache__ dirs, and egg-info break the
   # next run's `git clean -ffdx`.
