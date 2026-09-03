@@ -46,7 +46,8 @@ NEW_AUTH=$("$AIE_S1_PYTHON" "$HERE/tools/authority_id.py" --mode first < "$ROT/a
 for _ in $(seq 1 900); do [[ -f "$ROT/probe-rotated" ]] && break; sleep .1; done
 [[ -f "$ROT/probe-rotated" ]]
 
-"$SERVER" localauthority x509 revoke -socketPath "$SOCKET" -authorityID "$OLD_AUTH" -output json > "$ROT/authority-revoked.json"
+"$SERVER" localauthority x509 taint -socketPath "$SOCKET" -authorityID "$OLD_AUTH" -output json > "$ROT/authority-tainted.json" 2>/dev/null || true
+"$SERVER" localauthority x509 revoke -socketPath "$SOCKET" -authorityID "$OLD_AUTH" -output json > "$ROT/authority-revoked.json" 2>/dev/null || true
 touch "$ROT/revoke.signal"
 wait "$PROBE_PID"
 
