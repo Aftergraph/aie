@@ -5,9 +5,12 @@ import ssl
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Mapping
+from urllib.parse import urlsplit
 
 from .core import AIEGateway
 from .identity import TransportIdentity, validate_x509_svid_der
+from .model import ProtocolError
+from .protocols.a2a_http_json import is_a2a_http_json_nonstreaming, normalize_a2a_http_json_request
 
 
 class GatewayHTTPServer(ThreadingHTTPServer):
@@ -106,6 +109,77 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         spiffe_id = self.headers.get("X-AIE-Verified-Spiffe-ID")
         return TransportIdentity(spiffe_id, verified=verified, source="trusted-header-reference")
 
+    def _decision_response(self, decision) -> None:
+        payload = {
+            "status": decision.status,
+            "action_id": decision.action_id,
+            "protocol": decision.protocol,
+            "error_code": decision.error_code,
+            "prior": decision.prior,
+        }
+        if decision.status == "admitted":
+            status = 200
+        elif decision.status == "prior-outcome":
+            status = 409
+        elif decision.status == "uncertain":
+            status = 502
+        else:
+            status = 403
+        self._json(status, payload)
+
+    def _a2a_http_json(self) -> bool:
+        parsed = urlsplit(self.path)
+        if not is_a2a_http_json_nonstreaming(self.command, parsed.path):
+            return False
+        forwarder = self.server.forwarders.get("a2a_http_json")
+        if forwarder is None:
+            return False
+
+        raw = b""
+        body: dict[str, Any] = {}
+        if self.command in {"POST", "PUT", "PATCH"}:
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                raw = self.rfile.read(length) if length else b"{}"
+                value = json.loads(raw.decode("utf-8"))
+                if not isinstance(value, dict):
+                    raise ValueError("JSON body must be an object")
+                body = value
+            except Exception:
+                self._json(400, {"error": "invalid_json"})
+                return True
+
+        headers = {key: value for key, value in self.headers.items()}
+        try:
+            normalized = normalize_a2a_http_json_request(
+                method=self.command,
+                path=parsed.path,
+                query=parsed.query,
+                headers=headers,
+                body=body,
+            )
+        except ProtocolError as exc:
+            self._json(400 if exc.code == "AIE-PROTO-002" else 404, {"error_code": exc.code})
+            return True
+
+        if normalized.tenant:
+            headers["AIE-A2A-Tenant"] = normalized.tenant
+        headers["AIE-A2A-Binding"] = "HTTP+JSON"
+        identity = self._transport_identity()
+        target = parsed.path + (("?" + parsed.query) if parsed.query else "")
+        result = self.server.gateway.forward(
+            "a2a",
+            headers,
+            normalized.admission_body,
+            identity,
+            forwarder.bind_http(method=self.command, target=target, raw_body=raw),
+        )
+        if result.upstream is not None:
+            self._raw(result.upstream.status, result.upstream.body, result.upstream.headers)
+            return True
+        self._decision_response(result.decision)
+        return True
+
     def do_GET(self) -> None:
         if self.path == "/healthz":
             self._json(200, {"status": "ok", "gateway_version": "0.3.0"})
@@ -115,6 +189,8 @@ class _GatewayHandler(BaseHTTPRequestHandler):
                 self._json(401, {"error": "unauthorized"})
                 return
             self._json(200, {"events": self.server.gateway.store.list_evidence()})
+            return
+        if self._a2a_http_json():
             return
         self._json(404, {"error": "not_found"})
 
@@ -163,6 +239,9 @@ class _GatewayHandler(BaseHTTPRequestHandler):
             self._json(200, {"revoked": lease_id, "replicated": replicated})
             return
 
+        if self._a2a_http_json():
+            return
+
         if self.path not in {"/mcp", "/a2a"}:
             self._json(404, {"error": "not_found"})
             return
@@ -184,23 +263,7 @@ class _GatewayHandler(BaseHTTPRequestHandler):
             decision = result.decision
         else:
             decision = self.server.gateway.handle(protocol, headers, body, identity)
-
-        payload = {
-            "status": decision.status,
-            "action_id": decision.action_id,
-            "protocol": decision.protocol,
-            "error_code": decision.error_code,
-            "prior": decision.prior,
-        }
-        if decision.status == "admitted":
-            status = 200
-        elif decision.status == "prior-outcome":
-            status = 409
-        elif decision.status == "uncertain":
-            status = 502
-        else:
-            status = 403
-        self._json(status, payload)
+        self._decision_response(decision)
 
 
 def create_http_server(
