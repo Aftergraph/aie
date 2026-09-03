@@ -19,6 +19,7 @@ def test_outcome_persists_across_store_instances(tmp_path):
         "status": "admitted",
         "protocol": "mcp",
         "error_code": None,
+        "fingerprint": None,
     }
 
 

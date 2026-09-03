@@ -57,22 +57,63 @@ class SQLiteGatewayStore:
             columns = {row[1] for row in con.execute("PRAGMA table_info(revocations)").fetchall()}
             if "source_gateway" not in columns:
                 con.execute("ALTER TABLE revocations ADD COLUMN source_gateway TEXT")
+            outcome_columns = {row[1] for row in con.execute("PRAGMA table_info(outcomes)").fetchall()}
+            if "fingerprint" not in outcome_columns:
+                # ponytail: dedupe discriminator for id-reuse with different content;
+                # NULL = legacy row, treated conservatively as a match.
+                con.execute("ALTER TABLE outcomes ADD COLUMN fingerprint TEXT")
 
-    def put_outcome(self, action_id: str, *, status: str, protocol: str, error_code: str | None) -> None:
+    def put_outcome(
+        self,
+        action_id: str,
+        *,
+        status: str,
+        protocol: str,
+        error_code: str | None,
+        fingerprint: str | None = None,
+    ) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as con:
             con.execute(
-                "INSERT OR IGNORE INTO outcomes(action_id,status,protocol,error_code,created_at) VALUES(?,?,?,?,?)",
-                (action_id, status, protocol, error_code, now),
+                "INSERT OR REPLACE INTO outcomes(action_id,status,protocol,error_code,fingerprint,created_at) VALUES(?,?,?,?,?,?)",
+                (action_id, status, protocol, error_code, fingerprint, now),
             )
 
     def get_outcome(self, action_id: str) -> dict[str, Any] | None:
         with self._connect() as con:
             row = con.execute(
-                "SELECT action_id,status,protocol,error_code FROM outcomes WHERE action_id=?",
+                "SELECT action_id,status,protocol,error_code,fingerprint FROM outcomes WHERE action_id=?",
                 (action_id,),
             ).fetchone()
         return dict(row) if row else None
+
+    def clear_reservation(self, action_id: str) -> bool:
+        """Retire the budget marker for an action_id being reprocessed with new
+        content. Money-neutral in every state: committed/rolled_back already
+        settled, reserved is refunded first. Returns True if a marker existed."""
+        con = self._connect()
+        try:
+            con.execute("BEGIN IMMEDIATE")
+            row = con.execute(
+                "SELECT lease_id,amount,state FROM budget_reservations WHERE action_id=?",
+                (action_id,),
+            ).fetchone()
+            if row is None:
+                con.commit()
+                return False
+            if row["state"] == "reserved":
+                con.execute(
+                    "UPDATE lease_budget SET remaining=remaining+? WHERE lease_id=?",
+                    (float(row["amount"]), row["lease_id"]),
+                )
+            con.execute("DELETE FROM budget_reservations WHERE action_id=?", (action_id,))
+            con.commit()
+            return True
+        except Exception:
+            con.rollback()
+            raise
+        finally:
+            con.close()
 
     def revoke(
         self,

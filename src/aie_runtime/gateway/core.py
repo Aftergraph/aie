@@ -28,6 +28,34 @@ def _header(headers: Mapping[str, str], name: str) -> str | None:
     return None
 
 
+def request_fingerprint(
+    identity: TransportIdentity,
+    protocol: str,
+    action: NormalizedAction,
+    body: Mapping[str, Any],
+    headers: Mapping[str, str],
+) -> str:
+    """Dedupe discriminator: JSON-RPC ids are only unique per client session, so
+    a true replay is same id AND same content. Host/Origin are included because
+    rebinding probes reuse one id across evil and valid requests."""
+    canonical = json.dumps(
+        {
+            "spiffe": identity.spiffe_id,
+            "verified": bool(identity.verified),
+            "protocol": protocol,
+            "operation": action.operation,
+            "body": dict(body),
+            "host": _header(headers, "Host"),
+            "origin": _header(headers, "Origin"),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
 class AIEGateway:
     def __init__(
         self,
@@ -150,12 +178,14 @@ class AIEGateway:
         mission_id: str,
         lease_id: str,
         carrier: Mapping[str, str] | None = None,
+        fingerprint: str | None = None,
     ) -> None:
         self.store.put_outcome(
             action.action_id,
             status=decision.status,
             protocol=action.protocol,
             error_code=decision.error_code,
+            fingerprint=fingerprint,
         )
         event = build_gateway_evidence(
             action,
@@ -168,6 +198,13 @@ class AIEGateway:
         self.store.append_evidence(event)
         if self.evidence_exporter is not None:
             self.evidence_exporter.emit(event, carrier=carrier or {})
+
+    @staticmethod
+    def _is_true_replay(prior: dict[str, Any], fingerprint: str) -> bool:
+        stored = prior.get("fingerprint")
+        if stored is None:
+            return True  # legacy row without discriminator: preserve prior behavior
+        return stored == fingerprint
 
     def forward(
         self,
@@ -188,7 +225,13 @@ class AIEGateway:
             except ProtocolError as passthrough_exc:
                 return ForwardResult(GatewayDecision("denied", action_id, protocol, passthrough_exc.code))
 
+        fingerprint = request_fingerprint(identity, protocol, action, body, headers)
         prior = self.store.get_outcome(action.action_id)
+        if prior is not None and not self._is_true_replay(prior, fingerprint):
+            # Same id, different content: a new request, not a replay. Retire the
+            # stale budget marker (money-neutral) and evaluate on the merits.
+            self.store.clear_reservation(action.action_id)
+            prior = None
         if prior is not None:
             return ForwardResult(
                 GatewayDecision("prior-outcome", action.action_id, action.protocol, "AIE-REPLAY-001", prior=True)
@@ -226,14 +269,14 @@ class AIEGateway:
                 decision = GatewayDecision("uncertain", action.action_id, action.protocol, "AIE-UPSTREAM-002")
                 self._record(
                     action, decision, identity, principal_id=principal_id, mission_id=mission_id,
-                    lease_id=lease_id, carrier=headers,
+                    lease_id=lease_id, carrier=headers, fingerprint=fingerprint,
                 )
                 return ForwardResult(decision)
             self.store.commit_budget(action.action_id)
             decision = GatewayDecision("admitted", action.action_id, action.protocol)
             self._record(
                 action, decision, identity, principal_id=principal_id, mission_id=mission_id,
-                lease_id=lease_id, carrier=headers,
+                lease_id=lease_id, carrier=headers, fingerprint=fingerprint,
             )
             return ForwardResult(decision, upstream)
         except AIEError as exc:
@@ -242,7 +285,7 @@ class AIEGateway:
             decision = GatewayDecision("denied", action.action_id, action.protocol, exc.code)
             self._record(
                 action, decision, identity, principal_id=principal_id, mission_id=mission_id,
-                lease_id=lease_id, carrier=headers,
+                lease_id=lease_id, carrier=headers, fingerprint=fingerprint,
             )
             return ForwardResult(decision)
 
@@ -259,7 +302,11 @@ class AIEGateway:
         except ProtocolError as exc:
             return GatewayDecision("denied", action_id, protocol, exc.code)
 
+        fingerprint = request_fingerprint(identity, protocol, action, body, headers)
         prior = self.store.get_outcome(action.action_id)
+        if prior is not None and not self._is_true_replay(prior, fingerprint):
+            self.store.clear_reservation(action.action_id)
+            prior = None
         if prior is not None:
             return GatewayDecision(
                 "prior-outcome",
@@ -303,6 +350,7 @@ class AIEGateway:
                 mission_id=mission_id,
                 lease_id=lease_id,
                 carrier=headers,
+                fingerprint=fingerprint,
             )
             return decision
         except AIEError as exc:
@@ -317,5 +365,6 @@ class AIEGateway:
                 mission_id=mission_id,
                 lease_id=lease_id,
                 carrier=headers,
+                fingerprint=fingerprint,
             )
             return decision

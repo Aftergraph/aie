@@ -83,6 +83,30 @@ def test_gateway_replay_returns_prior_without_second_policy_call_or_charge(tmp_p
     assert store.remaining_budget("lease:refund") == 7.0
 
 
+def test_gateway_id_reuse_with_different_content_is_evaluated_fresh(tmp_path):
+    # JSON-RPC ids are only unique per client session: same id with different
+    # content (method, body, Host/Origin) is a new request, not a replay.
+    # Regression: the official conformance CLI reuses small ids across scenarios
+    # (dns-rebinding sends id=1 for evil then valid hosts); bare-id dedupe
+    # returned prior-outcome (HTTP 409) for the valid request.
+    calls = []
+    gateway, store = make_gateway(tmp_path, policy=lambda value: calls.append(value) or True)
+    headers = mcp_headers()
+    first = gateway.handle("mcp", headers, mcp_body("shared-id"), identity())
+    assert first.status == "admitted"
+    second_body = mcp_body("shared-id")
+    second_body["params"] = {"name": "refund_customer", "arguments": {"amount": 1}}
+    second = gateway.handle("mcp", headers, second_body, identity())
+    assert second.status == "admitted"
+    assert len(calls) == 2
+    assert store.remaining_budget("lease:refund") == 4.0
+    # exact repeat after that is still a replay
+    third = gateway.handle("mcp", headers, second_body, identity())
+    assert third.status == "prior-outcome"
+    assert third.error_code == "AIE-REPLAY-001"
+    assert len(calls) == 2
+
+
 def test_gateway_live_revocation_fails_closed(tmp_path):
     gateway, store = make_gateway(tmp_path)
     store.revoke("lease:refund")
