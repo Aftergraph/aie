@@ -55,6 +55,50 @@ def test_build_report_is_blocked_when_external_runtime_was_not_executed():
     assert report["promotion"] == "BLOCKED_EXTERNAL_RUNTIME"
     assert report["semantic_delta"] == []
 
+
+def test_upstream_gap_demotes_only_legs_without_leg_specific_failures(tmp_path):
+    shared = {"id": "upstream-extension", "status": "FAILURE"}
+    extra = {"id": "aie-regression", "status": "FAILURE"}
+    ok = {"id": "server-stateless", "status": "SUCCESS"}
+    roots = {}
+    for name in ("direct", "bridge", "aie"):
+        roots[name] = tmp_path / name
+    _checks(roots["direct"] / "run", [ok, shared])
+    _checks(roots["bridge"] / "run", [ok, shared])
+    _checks(roots["aie"] / "run", [ok, shared, extra])
+    legs = {name: collect_leg(name, roots[name], exit_code=1) for name in roots}
+    report = build_report(
+        local_gates={"workload_api_stream": "PASS", "atomic_tls_rotation": "PASS"},
+        legs=legs,
+        live_spire="PASS",
+    )
+    # The shared upstream-extension failure is filtered from the semantic delta;
+    # only aie-regression remains and only direct/bridge have it, so a delta
+    # must surface. The shared failure is demoted at the promotion layer but
+    # the raw leg status in the report keeps FAIL so the evidence is honest.
+    assert report["semantic_delta"] == [{"check_id": "aie-regression", "present_in": ["aie"]}]
+    assert report["legs"]["aie"]["status"] == "FAIL"
+    assert report["promotion"] == "FAIL"
+
+
+def test_upstream_gap_promotes_when_all_legs_share_only_upstream_failures(tmp_path):
+    shared = {"id": "upstream-extension", "status": "FAILURE"}
+    ok = {"id": "server-stateless", "status": "SUCCESS"}
+    roots = {}
+    for name in ("direct", "bridge", "aie"):
+        roots[name] = tmp_path / name
+        _checks(roots[name] / "run", [ok, shared])
+    legs = {name: collect_leg(name, roots[name], exit_code=1) for name in roots}
+    report = build_report(
+        local_gates={"workload_api_stream": "PASS", "atomic_tls_rotation": "PASS"},
+        legs=legs,
+        live_spire="PASS",
+    )
+    # No leg has a leg-specific failure outside the common set, so the
+    # upstream gap is the only signal and promotion is allowed to PASS.
+    assert report["semantic_delta"] == []
+    assert report["promotion"] == "PASS"
+
 from aie_runtime.s1_interop import official_mcp_command, environment_blockers
 
 

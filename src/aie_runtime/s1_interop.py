@@ -110,12 +110,15 @@ def build_report(
         common_failures = set(map(str, legs["direct"].get("checks_failed", [])))
         for name in names[1:]:
             common_failures &= set(map(str, legs[name].get("checks_failed", [])))
-        if common_failures:
-            for name in names:
-                leg = dict(legs[name])
-                if str(leg.get("status")) == "FAIL":
-                    leg["status"] = "PASS_UPSTREAM_GAP"
-                promoted_legs[name] = leg
+        for name in names:
+            leg = dict(legs[name])
+            # ponytail: demote only legs whose failures are ALL upstream-shared.
+            # A leg with any failure outside the common set keeps FAIL, so an
+            # AIE-specific regression can never hide behind a shared gap.
+            leg_failures = set(map(str, leg.get("checks_failed", [])))
+            if str(leg.get("status")) == "FAIL" and leg_failures and leg_failures <= common_failures:
+                leg["status"] = "PASS_UPSTREAM_GAP"
+            promoted_legs[name] = leg
     external_statuses = [str(promoted_legs.get(name, {}).get("status", "MISSING")) for name in names]
     local_ok = all(value == "PASS" for value in local_gates.values())
     if live_spire == "BLOCKED_EXTERNAL_RUNTIME" or any(v == "BLOCKED_EXTERNAL_RUNTIME" for v in external_statuses):
