@@ -47,6 +47,59 @@ def card_semantics(report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_s1_attestation(report: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if report.get('profile') != 'AIE Draft 0.4-S1.1 External CI Closure':
+        errors.append('profile')
+    if report.get('promotion') != 'PASS':
+        errors.append('promotion')
+    if report.get('mcp_revision') != '2026-07-28':
+        errors.append('mcp_revision')
+    if report.get('live_spire') != 'PASS':
+        errors.append('live_spire')
+
+    required_external = {
+        'svid_rotation_live',
+        'trust_bundle_rotation_live',
+        'old_trust_rejected',
+        'new_trust_works',
+    }
+    external = report.get('external_gates') or {}
+    for gate in sorted(required_external):
+        if external.get(gate) != 'PASS':
+            errors.append(f'external_gate:{gate}')
+
+    legs = report.get('legs') or {}
+    check_sets: list[tuple[str, ...]] = []
+    for name in ('direct', 'bridge', 'aie'):
+        leg = legs.get(name) or {}
+        check_ids = tuple(sorted(str(value) for value in (leg.get('check_ids') or [])))
+        check_sets.append(check_ids)
+        if leg.get('status') != 'PASS':
+            errors.append(f'leg_status:{name}')
+        if not check_ids:
+            errors.append(f'leg_checks_empty:{name}')
+        if int(leg.get('checks_total') or 0) != len(check_ids):
+            errors.append(f'leg_checks_total:{name}')
+    if not (check_sets[0] == check_sets[1] == check_sets[2]):
+        errors.append('leg_check_id_parity')
+
+    if report.get('semantic_delta') not in ([], None):
+        errors.append('semantic_delta')
+
+    provenance = report.get('provenance') or {}
+    if provenance.get('provider') != 'github-actions':
+        errors.append('provenance_provider')
+    for key in ('run_id', 'git_sha', 'workflow_ref'):
+        if not str(provenance.get(key) or '').strip():
+            errors.append(f'provenance:{key}')
+    git_sha = str(provenance.get('git_sha') or '')
+    if git_sha and (len(git_sha) != 40 or any(ch not in '0123456789abcdefABCDEF' for ch in git_sha)):
+        errors.append('provenance:git_sha_format')
+
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Aggregate official A2A TCK parity evidence for AIE S2.')
     parser.add_argument('--direct', type=Path, required=True)
@@ -120,9 +173,11 @@ def main() -> int:
 
     s1 = load_json(args.s1_promotion)
     s1_status = str(s1.get('promotion') or '')
+    s1_validation_errors = validate_s1_attestation(s1)
+    s1_satisfied = not s1_validation_errors
     if semantic_delta or not direct_all_pass or not statuses_equal:
         promotion = 'FAIL'
-    elif s1_status != 'PASS':
+    elif not s1_satisfied:
         promotion = 'BLOCKED_BY_S1'
     else:
         promotion = 'PASS'
@@ -140,7 +195,8 @@ def main() -> int:
         },
         's1_dependency': {
             'promotion': s1_status,
-            'satisfied': s1_status == 'PASS',
+            'satisfied': s1_satisfied,
+            'validation_errors': s1_validation_errors,
             'source': str(args.s1_promotion),
         },
         'must_requirement_ids': sorted(ids['direct']),
