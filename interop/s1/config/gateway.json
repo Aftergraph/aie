@@ -1,0 +1,39 @@
+{
+  "store": "/tmp/aie-v04-s1/gateway-data/gateway.sqlite3",
+  "workload_api": {
+    "endpoint": "unix:///tmp/aie-v04-s1/spire-agent/public/api.sock",
+    "watch": true,
+    "timeout": 5.0,
+    "reconnect_delay": 0.25
+  },
+  "tls": {"source": "workload_api", "require_client_cert": true},
+  "principals": [
+    {"id": "mcp-conformance-client", "type": "agent", "identity_ref": "spiffe://aie.test/interop/mcp-client-bridge"}
+  ],
+  "missions": [{"id": "s1-mcp-conformance", "state": "active"}],
+  "leases": [{
+    "id": "s1-mcp-lease",
+    "principal_id": "mcp-conformance-client",
+    "mission_id": "s1-mcp-conformance",
+    "capabilities": ["mcp.*"],
+    "resource_prefixes": ["mcp://"],
+    "expires_at": "2099-01-01T00:00:00+00:00",
+    "budget_remaining": 1000000,
+    "max_delegation_depth": 0
+  }],
+  "authority_bindings": [{
+    "spiffe_id": "spiffe://aie.test/interop/mcp-client-bridge",
+    "mission_id": "s1-mcp-conformance",
+    "lease_id": "s1-mcp-lease"
+  }],
+  "policy": {"type": "local", "decision": "allow"},
+  "protocol_passthrough_on_parse_error": true,
+  "upstreams": {
+    "mcp": {
+      "url": "https://127.0.0.1:18443/mcp",
+      "timeout": 20.0,
+      "tls": {"source": "workload_api"},
+      "expected_spiffe_id": "spiffe://aie.test/interop/mcp-server-bridge"
+    }
+  }
+}

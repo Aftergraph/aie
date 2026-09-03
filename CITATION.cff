@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+title: "Agentic Institution Engineering (AIE)"
+message: "If you use AIE in research or standards work, cite this repository and the exact commit or release used."
+type: software
+authors:
+  - family-names: "Abde"
+    given-names: "Jonas"
+repository-code: "https://github.com/JonasAbde/aie"
+license: Apache-2.0
+version: "0.4-s1.1-dev"
+date-released: "2026-09-03"

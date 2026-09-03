@@ -1,0 +1,26 @@
+name: Standards change
+description: Propose a normative AIE change
+title: "spec: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Interoperability problem
+    validations:
+      required: true
+  - type: textarea
+    id: normative
+    attributes:
+      label: Proposed normative change
+    validations:
+      required: true
+  - type: textarea
+    id: vectors
+    attributes:
+      label: Conformance vectors / falsification
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility impact

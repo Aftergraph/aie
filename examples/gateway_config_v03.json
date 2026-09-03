@@ -1,0 +1,43 @@
+{
+  "workload_api": {
+    "endpoint": "unix:///run/spire/sockets/agent.sock",
+    "hint": "aie-gateway",
+    "timeout": 5.0
+  },
+  "tls": {
+    "source": "workload_api",
+    "require_client_cert": true
+  },
+  "store": "gateway-v03.db",
+  "principals": [],
+  "missions": [],
+  "leases": [],
+  "policy": {
+    "type": "opa",
+    "url": "http://127.0.0.1:8181/v1/data/aie/gateway/allow",
+    "timeout": 2.0
+  },
+  "upstreams": {
+    "mcp": {
+      "url": "https://127.0.0.1:9443/mcp",
+      "tls": {"source": "workload_api"},
+      "expected_spiffe_id": "spiffe://example.org/mcp/server"
+    },
+    "a2a": {
+      "url": "https://127.0.0.1:9444/a2a",
+      "tls": {"source": "workload_api"},
+      "expected_spiffe_id": "spiffe://example.org/a2a/server"
+    }
+  },
+  "federation": {
+    "source_gateway": "spiffe://example.org/gateway/a",
+    "trusted_peers": ["spiffe://example.org/gateway/b"],
+    "client_tls": {"source": "workload_api"},
+    "peers": [
+      {
+        "url": "https://127.0.0.1:9555/federation/revocations",
+        "expected_spiffe_id": "spiffe://example.org/gateway/b"
+      }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+suite: aie-gateway/0.3
+semantic_target: AIE Draft 0.3
+vectors:
+  - id: GW03-TRUST-001
+    requirement: inbound HTTPS rejects callers without a client certificate when mTLS is required
+    test: tests/gateway/test_mtls_http_v03.py
+  - id: GW03-TRUST-002
+    requirement: X.509-SVID leaf contains exactly one URI SAN and a non-root SPIFFE path
+    test: tests/gateway/test_tls_identity_v03.py
+  - id: GW03-WAPI-001
+    requirement: Workload API FetchX509SVID is called with workload.spiffe.io=true and yields the default SVID
+    test: tests/gateway/test_workload_api_v03.py
+  - id: GW03-TRUST-003
+    requirement: outbound HTTPS peer identity is pinned to the configured SPIFFE ID after certificate-chain validation
+    test: tests/gateway/test_outbound_spiffe_v03.py
+  - id: GW03-MCP-FWD-001
+    requirement: admitted MCP 2026-07-28 request is forwarded and the concrete upstream response is returned
+    test: tests/gateway/test_http_forwarding_v03.py
+  - id: GW03-A2A-FWD-001
+    requirement: admitted A2A 1.0 request is forwarded under the same AIE admission semantics
+    test: tests/gateway/test_http_forwarding_v03.py
+  - id: GW03-UPSTREAM-001
+    requirement: deterministic upstream trust failure denies and rolls budget back
+    test: tests/gateway/test_forwarding_v03.py
+  - id: GW03-UPSTREAM-002
+    requirement: ambiguous transport failure becomes terminal uncertain, commits reserved budget, and is replay protected
+    test: tests/gateway/test_forwarding_v03.py
+  - id: GW03-TRACE-001
+    requirement: AIE decision span inherits incoming W3C trace context
+    test: tests/gateway/test_otel_gateway_integration_v03.py
+  - id: GW03-FED-REV-001
+    requirement: revocation propagates gateway-to-gateway over mTLS and source_gateway equals authenticated peer identity
+    test: tests/gateway/test_mtls_revocation_federation_v03.py
+  - id: GW03-PRIV-001
+    requirement: default evidence excludes MCP tool arguments and A2A message content
+    test: tests/gateway/test_gateway_evidence.py

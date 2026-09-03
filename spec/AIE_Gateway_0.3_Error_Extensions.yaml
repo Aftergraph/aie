@@ -1,0 +1,31 @@
+registry: aie.gateway.errors
+version: 0.3.0
+status: implementer-draft
+entries:
+  - code: AIE-PROTO-001
+    meaning: unsupported protocol or protocol version
+    retry: false
+  - code: AIE-PROTO-002
+    meaning: malformed or incomplete protocol request for admission
+    retry: false
+  - code: AIE-IDENT-001
+    meaning: inbound workload identity missing, unverifiable, or invalid as an X.509-SVID leaf
+    retry: false
+  - code: AIE-IDENT-002
+    meaning: authenticated outbound peer SPIFFE ID does not match the configured expected identity
+    retry: false
+  - code: AIE-UPSTREAM-001
+    meaning: deterministic upstream authentication or trust failure before request dispatch
+    retry: false
+    budget_semantics: rollback
+  - code: AIE-UPSTREAM-002
+    meaning: upstream transport failed after dispatch could have occurred and completion is unknown
+    retry: false
+    budget_semantics: commit
+    terminal_state: uncertain
+  - code: AIE-FED-001
+    meaning: federation peer is not trusted or its authenticated identity does not match source_gateway
+    retry: false
+  - code: AIE-FED-002
+    meaning: invalid or unsupported revocation federation envelope
+    retry: false

@@ -1,0 +1,80 @@
+name: AIE v0.4 S1 External Interop
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/aie_runtime/**"
+      - "interop/s1/**"
+      - "tests/**"
+      - ".github/workflows/aie-v04-s1-external-interop.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aie-v04-s1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  external-interop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      AIE_S1_STATE: /tmp/aie-v04-s1
+      AIE_S1_RESULTS: ${{ github.workspace }}/interop/s1/results
+      AIE_S1_DEPS: /tmp/aie-v04-s1-deps
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install pinned build/test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+          python -m pip install 'uv==0.8.17'
+
+
+      - name: Capture absolute tool paths for sudo/runuser boundaries
+        run: |
+          echo "AIE_S1_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+          echo "AIE_S1_UV=$(command -v uv)" >> "$GITHUB_ENV"
+          echo "AIE_S1_NPX=$(command -v npx)" >> "$GITHUB_ENV"
+
+      - name: Local regression gate
+        run: pytest -q
+
+      - name: Static harness validation
+        run: |
+          bash -n interop/s1/scripts/*.sh
+          python -m compileall -q src interop/s1
+
+      - name: Live SPIRE + official MCP three-leg conformance
+        run: sudo --preserve-env=AIE_S1_PYTHON,AIE_S1_UV,AIE_S1_NPX,AIE_S1_STATE,AIE_S1_RESULTS,AIE_S1_DEPS,GITHUB_ACTIONS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,GITHUB_WORKFLOW_REF bash interop/s1/scripts/ci_external_s1.sh
+
+      - name: Promotion summary
+        if: always()
+        run: |
+          if [ -f interop/s1/results/AIE_S1_1_PROMOTION.json ]; then
+            cat interop/s1/results/AIE_S1_1_PROMOTION.json
+          fi
+
+      - name: Upload S1.1 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aie-v04-s1-external-interop-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            interop/s1/results/AIE_S1_1_PROMOTION.json
+            interop/s1/results/**/checks.json
+            interop/s1/results/**/command.txt
+            interop/s1/results/**/stdout.log
+            interop/s1/results/**/stderr.log
+            interop/s1/results/rotation/*.json
+            interop/s1/results/lab-logs/*.log

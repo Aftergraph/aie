@@ -1,0 +1,24 @@
+suiteVersion: 0.3.0
+semanticDraft: "0.3"
+profiles:
+  C0:
+    - {id: C0-ID-001, given: protected action without resolvable Principal or MissionContract, expect: "deny:AIE-AUTH-001"}
+    - {id: C0-AUTH-002, given: AuthorityLease expires after planning and before execution, expect: "deny:AIE-AUTH-002"}
+    - {id: C0-REVOKE-003, given: AuthorityLease revoked while action is queued, expect: "deny:AIE-AUTH-003"}
+    - {id: C0-SCOPE-004, given: action resource outside lease scope, expect: "deny:AIE-AUTH-004"}
+    - {id: C0-REPLAY-005, given: identical committed actionId delivered twice, expect: "prior-outcome:AIE-REPLAY-001"}
+    - {id: C0-POLICY-006, given: policy engine returns explicit deny, expect: "deny:AIE-POLICY-001"}
+    - {id: C0-POLICY-007, given: policy evaluation errors with no named degraded mode, expect: "deny:AIE-POLICY-002"}
+    - {id: C0-EVID-008, given: side effect succeeds but required evidence cannot be completed, expect: "settlement-blocked:AIE-EVID-001"}
+    - {id: C0-EXT-009, given: manifest contains unsupported critical extension, expect: "deny:AIE-EXT-001"}
+  D1:
+    - {id: D1-ATTEN-001, given: parent delegates scope it does not possess, expect: "deny:AIE-DELEG-001"}
+    - {id: D1-DEPTH-002, given: delegation would exceed declared maxDepth, expect: "deny:AIE-DELEG-002"}
+    - {id: D1-BUDGET-003, given: parallel children reserve more than remaining conserved budget, expect: "deny-one-or-more:AIE-BUDGET-001"}
+    - {id: D1-REVOKE-004, given: parent revoked and descendant executes after declared freshness bound, expect: "deny:AIE-AUTH-003"}
+  T1:
+    - {id: T1-MUT-001, given: unauthorized spawn reroute or role-change, expect: "deny:AIE-TOPO-001"}
+  F1:
+    - {id: F1-TRUST-001, given: unknown or rejected remote identity issuer, expect: "deny:AIE-FED-001"}
+    - {id: F1-CLOCK-002, given: clock skew exceeds declared trust-domain bound, expect: "deny:AIE-FED-002"}
+    - {id: F1-FRESH-003, given: remote revocation freshness cannot be established, expect: "deny:AIE-FRESH-001"}

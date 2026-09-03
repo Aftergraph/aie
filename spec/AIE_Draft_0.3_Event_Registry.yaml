@@ -1,0 +1,21 @@
+registry: aie-core-events
+version: "0.3"
+policy: append-only-within-major
+events:
+  - mission.admitted
+  - mission.denied
+  - authority.granted
+  - authority.revoked
+  - delegation.created
+  - delegation.revoked
+  - action.admitted
+  - action.denied
+  - action.committed
+  - policy.decided
+  - budget.reserved
+  - budget.committed
+  - budget.released
+  - topology.mutated
+  - evidence.recorded
+  - verification.completed
+  - mission.settled

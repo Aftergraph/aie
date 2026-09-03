@@ -1,0 +1,83 @@
+suiteVersion: 0.1.0
+semanticDraft: "0.3"
+clock: "2026-09-03T00:00:00+00:00"
+vectors:
+  - id: C0-ALLOW-000
+    operation: admit
+    mutate: {}
+    policy: allow
+    expect: admitted
+  - id: C0-ID-001
+    operation: admit
+    mutate: {principal_id: agent:missing}
+    policy: allow
+    expect: AIE-AUTH-001
+  - id: C0-AUTH-002
+    operation: admit
+    setup: {expired: true}
+    mutate: {}
+    policy: allow
+    expect: AIE-AUTH-002
+  - id: C0-REVOKE-003
+    operation: admit
+    setup: {revoked: true}
+    mutate: {}
+    policy: allow
+    expect: AIE-AUTH-003
+  - id: C0-SCOPE-004
+    operation: admit
+    mutate: {resource: repo://other/x}
+    policy: allow
+    expect: AIE-AUTH-004
+  - id: C0-BUDGET-005
+    operation: admit
+    mutate: {budget_cost: 11}
+    policy: allow
+    expect: AIE-BUDGET-001
+  - id: C0-POLICY-006
+    operation: admit
+    mutate: {}
+    policy: deny
+    expect: AIE-POLICY-001
+  - id: C0-EXT-007
+    operation: admit
+    mutate:
+      extensions:
+        - {namespace: org.unknown, critical: true}
+    policy: allow
+    expect: AIE-EXT-001
+  - id: D1-ATTEN-001
+    operation: delegate
+    setup: {child_capabilities: [ci.run], parent_capabilities: [repo.read, repo.write]}
+    expect: AIE-DELEG-001
+  - id: D1-DEPTH-002
+    operation: delegate
+    setup: {parent_depth: 2, max_depth: 2, child_capabilities: [repo.read]}
+    expect: AIE-DELEG-002
+  - id: D1-BUDGET-003
+    operation: delegate
+    setup: {child_budget: 11, parent_budget: 10, child_capabilities: [repo.read]}
+    expect: AIE-BUDGET-001
+  - id: D1-REVOKE-004
+    operation: revoke-descendant
+    setup: {child_capabilities: [repo.read], child_budget: 2}
+    expect: revoked
+  - id: T1-MUT-001
+    operation: topology
+    policy: deny
+    expect: AIE-TOPO-001
+  - id: F1-TRUST-001
+    operation: federation
+    setup: {trusted_issuer: https://issuer.example}
+    mutate: {issuer: https://evil.example, clock_skew_seconds: 0, revocation_fresh: true}
+    expect: AIE-FED-001
+  - id: F1-CLOCK-002
+    operation: federation
+    setup: {trusted_issuer: https://issuer.example}
+    mutate: {issuer: https://issuer.example, clock_skew_seconds: 31, revocation_fresh: true}
+    expect: AIE-FED-002
+  - id: F1-FRESH-003
+    operation: federation
+    setup: {trusted_issuer: https://issuer.example}
+    mutate: {issuer: https://issuer.example, clock_skew_seconds: 1, revocation_fresh: false}
+    expect: AIE-FRESH-001

@@ -1,0 +1,1 @@
+{"name":"AIE Reference Gateway","version":"0.3.0","semantic_target":"AIE Draft 0.3","status":"implementer-proof","claims":{"runtime_conformance":"32/32","gateway_promotion_vectors":"11/11","tests":"82/82"},"limits":["not Candidate Standard","no external official MCP/A2A interoperability claim"]}

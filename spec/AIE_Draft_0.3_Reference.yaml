@@ -1,0 +1,91 @@
+apiVersion: aie.open/v0alpha4
+kind: Institution
+schemaVersion: 0.3.0
+metadata:
+  name: governed-release-factory
+spec:
+  conformance:
+    profiles: [C0, D1, T1]
+    suiteVersion: 0.3.0
+  trustDomain: spiffe://example.ai
+  principals:
+    - id: user:owner
+      type: human
+      identityRef: oidc://example.ai/users/owner
+    - id: agent:planner
+      type: agent
+      identityRef: spiffe://example.ai/agents/planner
+    - id: agent:executor
+      type: agent
+      identityRef: spiffe://example.ai/agents/executor
+  roles:
+    planner:
+      capabilities: [repo.read, ci.read, mission.delegate]
+      constraints: {maxDelegationDepth: 2}
+    executor:
+      capabilities: [repo.write, ci.run]
+  authority:
+    defaultTTL: 30m
+    resolution:
+      algorithm: aie-core-v1
+      requireExecutionTimeValidation: true
+      replayProtection: action-id
+    delegation:
+      maxDepth: 2
+      attenuateScope: true
+      conserveBudget: true
+      descendantRevocation: bounded-propagation
+    revocation:
+      freshnessObjective: 5s
+      onUnknownFreshness: deny-protected-actions
+  missions:
+    defaults:
+      maxWallClock: 60m
+      maxTokens: 300000
+      maxSpendEUR: 15
+      riskClass: medium
+      success:
+        - tests.green == true
+        - evidence.complete == true
+  budgets:
+    consistencyModel: serializable-reservation
+  topology:
+    maxActiveAgents: 8
+    mutations:
+      allowed: [spawn, retire, reroute, pause, role-change]
+      requirePolicyDecision: true
+  policy:
+    engine: opa
+    bundle: ./policy
+    precedence: [org, mission, role, action]
+    defaultDecision: deny
+  evidence:
+    minimizePayloads: true
+    digestAlgorithm: sha256
+    requiredEvents:
+      - mission.admitted
+      - authority.granted
+      - delegation.created
+      - action.admitted
+      - action.denied
+      - policy.decided
+      - topology.mutated
+      - verification.completed
+      - mission.settled
+  registries:
+    errorCodes: aie-core-errors@0.3
+    eventTypes: aie-core-events@0.3
+    extensionPolicy: aie-extension-policy@0.3
+  bindings:
+    tools: mcp
+    agents: a2a
+    identity: spiffe-oidc
+    policy: opa
+    telemetry: opentelemetry
+    durability: temporal-compatible
+    runtimeControl: owasp-acs-compatible
+  extensions:
+    - namespace: org.example.release
+      version: 1.0.0
+      critical: false
+      payload: {changeWindow: business-hours}

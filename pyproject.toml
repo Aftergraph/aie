@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aie-reference-runtime"
+version = "0.3.0"
+description = "AIE Draft 0.3 reference runtime and real-trust MCP/A2A admission gateway"
+requires-python = ">=3.11"
+dependencies = [
+  "PyYAML>=6",
+  "jsonschema>=4",
+  "cryptography>=46",
+  "grpcio>=1.80",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-json-report>=1.5"]
+otel = [
+  "opentelemetry-api>=1.42",
+  "opentelemetry-sdk>=1.42",
+  "opentelemetry-exporter-otlp-proto-http>=1.42",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+aie-conformance = "aie_runtime.conformance:main"
+aie-gateway = "aie_runtime.gateway.cli:main"
+aie-gateway-conformance = "aie_runtime.gateway.conformance:main"

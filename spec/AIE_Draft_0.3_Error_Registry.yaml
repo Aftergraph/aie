@@ -1,0 +1,22 @@
+registry: aie-core-errors
+version: "0.3"
+policy: append-only-within-major
+codes:
+  AIE-AUTH-001: {class: AUTH, meaning: principal-or-mission-unresolved, defaultOutcome: deny}
+  AIE-AUTH-002: {class: AUTH, meaning: authority-lease-expired, defaultOutcome: deny}
+  AIE-AUTH-003: {class: AUTH, meaning: authority-lease-revoked, defaultOutcome: deny}
+  AIE-AUTH-004: {class: AUTH, meaning: scope-or-resource-not-authorized, defaultOutcome: deny}
+  AIE-DELEG-001: {class: DELEG, meaning: delegation-attenuation-violation, defaultOutcome: deny}
+  AIE-DELEG-002: {class: DELEG, meaning: delegation-depth-exceeded, defaultOutcome: deny}
+  AIE-BUDGET-001: {class: BUDGET, meaning: budget-reservation-denied, defaultOutcome: deny}
+  AIE-BUDGET-002: {class: BUDGET, meaning: budget-ledger-freshness-unknown, defaultOutcome: deny}
+  AIE-POLICY-001: {class: POLICY, meaning: policy-explicit-deny, defaultOutcome: deny}
+  AIE-POLICY-002: {class: POLICY, meaning: policy-evaluation-error, defaultOutcome: deny}
+  AIE-FRESH-001: {class: FRESH, meaning: required-freshness-unverifiable, defaultOutcome: deny}
+  AIE-REPLAY-001: {class: REPLAY, meaning: duplicate-action-id, defaultOutcome: return-prior-outcome}
+  AIE-TOPO-001: {class: TOPO, meaning: topology-mutation-denied, defaultOutcome: deny}
+  AIE-FED-001: {class: FED, meaning: trust-domain-or-issuer-rejected, defaultOutcome: deny}
+  AIE-FED-002: {class: FED, meaning: clock-bound-exceeded, defaultOutcome: deny}
+  AIE-EVID-001: {class: EVID, meaning: required-evidence-incomplete, defaultOutcome: block-verified-settlement}
+  AIE-EXT-001: {class: EXT, meaning: unsupported-critical-extension, defaultOutcome: deny}
+  AIE-SETTLE-001: {class: SETTLE, meaning: settlement-preconditions-unsatisfied, defaultOutcome: block-settlement}

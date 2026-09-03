@@ -1,0 +1,23 @@
+{
+  "profile": "AIE v0.4-S1.1 canonical source baseline",
+  "verified_at": "2026-09-03",
+  "protected_paths": ["src", "spec", "tests", "interop/s1"],
+  "protected_file_count": 95,
+  "content_set_sha256": "f26a0c322117ac6566454e5523f09f244f6bbf532ba696a24895ed33e33b07f8",
+  "file_counts": {
+    "src": 30,
+    "spec": 7,
+    "tests": 37,
+    "interop/s1": 21
+  },
+  "local_verification": {
+    "pytest": "114 passed",
+    "compileall": "PASS",
+    "shell_syntax": "PASS"
+  },
+  "external_promotion": "BLOCKED_EXTERNAL_RUNTIME",
+  "notes": [
+    "Git blob identities for the protected baseline were compared against local git hash-object values during repository import.",
+    "Local verification does not substitute for the live SPIRE and official MCP external interoperability gates."
+  ]
+}

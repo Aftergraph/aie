@@ -1,0 +1,54 @@
+{
+  "external_gates": {
+    "new_trust_works": "BLOCKED_EXTERNAL_RUNTIME",
+    "old_trust_rejected": "BLOCKED_EXTERNAL_RUNTIME",
+    "svid_rotation_live": "BLOCKED_EXTERNAL_RUNTIME",
+    "trust_bundle_rotation_live": "BLOCKED_EXTERNAL_RUNTIME"
+  },
+  "legs": {
+    "aie": {
+      "check_ids": [],
+      "checks_total": 0,
+      "name": "aie",
+      "status": "BLOCKED_EXTERNAL_RUNTIME"
+    },
+    "bridge": {
+      "check_ids": [],
+      "checks_total": 0,
+      "name": "bridge",
+      "status": "BLOCKED_EXTERNAL_RUNTIME"
+    },
+    "direct": {
+      "check_ids": [],
+      "checks_total": 0,
+      "name": "direct",
+      "status": "BLOCKED_EXTERNAL_RUNTIME"
+    }
+  },
+  "live_spire": "BLOCKED_EXTERNAL_RUNTIME",
+  "local_gates": {
+    "atomic_tls_rotation": "PASS",
+    "authority_binding": "PASS",
+    "bounded_capability_prefix": "PASS",
+    "host_header_transparency": "PASS",
+    "protocol_error_passthrough_opt_in": "PASS",
+    "workload_api_stream": "PASS"
+  },
+  "mcp_revision": "2026-07-28",
+  "profile": "AIE Draft 0.4-S1.1 External CI Closure",
+  "promotion": "BLOCKED_EXTERNAL_RUNTIME",
+  "provenance": {
+    "git_sha": "",
+    "provider": "local",
+    "run_attempt": "",
+    "run_id": "",
+    "workflow_ref": ""
+  },
+  "semantic_delta": [],
+  "versions": {
+    "mcp_conformance": "0.2.0-alpha.11",
+    "mcp_python_sdk": "v2.0.0",
+    "mcp_requirements": "2026-07-28",
+    "spire": "1.15.2"
+  }
+}

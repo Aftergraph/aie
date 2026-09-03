@@ -1,0 +1,38 @@
+{
+  "store": "gateway-demo.db",
+  "principals": [
+    {
+      "id": "agent:refund",
+      "type": "agent",
+      "identity_ref": "spiffe://example.org/agent/refund"
+    }
+  ],
+  "missions": [
+    {
+      "id": "mission:refunds",
+      "state": "active"
+    }
+  ],
+  "leases": [
+    {
+      "id": "lease:refund",
+      "principal_id": "agent:refund",
+      "mission_id": "mission:refunds",
+      "capabilities": [
+        "mcp.tools.call:refund_customer",
+        "a2a.message.send"
+      ],
+      "resource_prefixes": [
+        "mcp://tool/refund_customer",
+        "a2a://message/"
+      ],
+      "expires_at": "2027-01-01T00:00:00+00:00",
+      "budget_remaining": 100,
+      "max_delegation_depth": 1
+    }
+  ],
+  "policy": {
+    "type": "local",
+    "decision": "allow"
+  }
+}

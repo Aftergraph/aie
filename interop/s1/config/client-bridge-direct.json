@@ -1,0 +1,15 @@
+{
+  "listen": {"host": "127.0.0.1", "port": 19080},
+  "workload_api": {
+    "endpoint": "unix:///tmp/aie-v04-s1/spire-agent/public/api.sock",
+    "watch": true,
+    "timeout": 5.0,
+    "reconnect_delay": 0.25
+  },
+  "upstream": {
+    "url": "https://127.0.0.1:18443",
+    "timeout": 20.0,
+    "tls": {"source": "workload_api"},
+    "expected_spiffe_id": "spiffe://aie.test/interop/mcp-server-bridge"
+  }
+}

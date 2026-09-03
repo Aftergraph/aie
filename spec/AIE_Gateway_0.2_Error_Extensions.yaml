@@ -1,0 +1,13 @@
+version: aie-gateway-errors/0.2
+errors:
+  - code: AIE-PROTO-001
+    meaning: Unsupported gateway protocol or protocol version.
+    disposition: fail_closed
+  - code: AIE-PROTO-002
+    meaning: Required protocol routing or request identity metadata is missing.
+    disposition: fail_closed
+  - code: AIE-IDENT-001
+    meaning: Workload identity is missing, unverified, or not an accepted SPIFFE identifier.
+    disposition: fail_closed
+notes:
+  - These codes are gateway reference extensions and are not promoted into the AIE Draft 0.3 core registry by this implementation.

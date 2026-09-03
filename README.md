@@ -8,7 +8,14 @@ The project explores the layer above coordination topology and runtime control:
 
 Current maturity: **Draft 0.3 / v0.4 interoperability workstream**. This repository is intentionally conservative about claims: local tests are not treated as external interoperability evidence.
 
-The repository contains the AIE Draft 0.3 specification artifacts, two reference runtimes, an admission gateway for MCP/A2A traffic, SPIFFE/X.509-SVID trust integration, conformance suites, and the v0.4-S1.1 external MCP interoperability lab.
+## Repository boundaries
+
+- `spec/` — normative draft artifacts and registries
+- `src/` — reference implementation only
+- `conformance/` — executable claim vectors
+- `interop/` — external interoperability labs
+- `evidence/` — release and promotion provenance
+- `docs/` — research, standards basis, roadmap, and design notes
 
 ## Current promotion target
 
@@ -23,9 +30,14 @@ The repository contains the AIE Draft 0.3 specification artifacts, two reference
 
 Until those gates run externally, promotion remains `BLOCKED_EXTERNAL_RUNTIME`.
 
-## Repository structure
+## Local verification
 
-The full source tree, specs, tests, workflows, design notes, and reproducible interop lab are imported in the next bootstrap commit.
+```bash
+python -m pip install -e '.[dev,otel]'
+pytest -q
+```
+
+The canonical repository tree was locally verified at **114/114 tests passing** before publication.
 
 ## Status
 
@@ -33,4 +45,4 @@ Research thesis → Draft specification → two runtimes → conformance → dur
 
 ## License
 
-License and standards-governance policy are established in the repository bootstrap workstream before any 1.0 claim.
+Apache-2.0.
