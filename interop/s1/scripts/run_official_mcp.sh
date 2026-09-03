@@ -5,6 +5,7 @@ source "$HERE/versions.env"
 RESULT_ROOT=${AIE_S1_RESULTS:-$HERE/results}
 mkdir -p "$RESULT_ROOT"
 NPX=${AIE_S1_NPX:-$(command -v npx)}
+MCP_PORT=${AIE_S1_MCP_PORT:-3000}
 run_leg() {
   local name=$1 url=$2 dir="$RESULT_ROOT/$name"
   rm -rf "$dir"; mkdir -p "$dir"; cd "$dir"
@@ -15,6 +16,6 @@ run_leg() {
   printf '%s\n' "$ec" > exit_code.txt
   return 0
 }
-run_leg direct "http://127.0.0.1:3000/mcp"
+run_leg direct "http://127.0.0.1:$MCP_PORT/mcp"
 run_leg bridge "http://127.0.0.1:19080/mcp"
 run_leg aie "http://127.0.0.1:19081/mcp"

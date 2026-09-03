@@ -9,6 +9,13 @@ trap 'rm -f "$FAILURES"' EXIT
 mkdir -p "$RESULT_ROOT"
 : > "$FAILURES"
 
+# AIE_S1_MCP_PORT overrides the official MCP everything-server port (default 3000).
+# The AIE protocol itself is port-agnostic; 3000 is only the upstream MCP reference
+# server's default. All other ports are AIE-internal and fixed.
+AIE_S1_MCP_PORT=${AIE_S1_MCP_PORT:-3000}
+AIE_S1_FIXED_PORTS=(18443 18444 19080 19081)
+AIE_S1_ALL_PORTS=("$AIE_S1_MCP_PORT" "${AIE_S1_FIXED_PORTS[@]}")
+
 fail() { printf '%s\n' "$1" >> "$FAILURES"; }
 check_cmd() { command -v "$1" >/dev/null 2>&1 || fail "missing_command:$1"; }
 
@@ -47,9 +54,9 @@ fi
 
 # Every fixed lab port must be free before the proof begins.
 if command -v python3 >/dev/null 2>&1; then
-  python3 - <<'PY' || fail "ports:one-or-more-in-use"
-import socket
-ports = (18081, 18443, 18444, 19080, 19081, 3000)
+  python3 - "$AIE_S1_ALL_PORTS" <<'PY' || fail "ports:one-or-more-in-use"
+import socket, sys
+ports = tuple(int(p) for p in sys.argv[1:])
 sockets = []
 try:
     for port in ports:
@@ -74,7 +81,7 @@ report = {
     'platform': platform.platform(),
     'machine': platform.machine(),
     'commands': {name: shutil.which(name) for name in commands},
-    'ports': [18081, 18443, 18444, 19080, 19081, 3000],
+    'ports': list(ports),
     'failures': failures,
 }
 Path(sys.argv[2]).write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')

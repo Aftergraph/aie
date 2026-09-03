@@ -10,5 +10,5 @@
     "spiffe://aie.test/interop/mcp-client-bridge",
     "spiffe://aie.test/gateway/s1"
   ],
-  "upstream": {"url": "http://127.0.0.1:3000", "timeout": 20.0}
+  "upstream": {"url": "http://127.0.0.1:${AIE_S1_MCP_PORT}", "timeout": 20.0}
 }
