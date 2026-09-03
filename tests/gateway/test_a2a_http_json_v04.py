@@ -135,7 +135,7 @@ def test_repeatable_get_query_and_canonicalization(tmp_path):
         upstream.shutdown()
 
 
-def test_list_cancel_revocation_and_streaming_fail_closed(tmp_path):
+def test_list_cancel_revocation_and_unsupported_rest_operation_fail_closed(tmp_path):
     server, upstream, gw = serve(tmp_path)
     try:
         assert request(server, "/tasks") == 200
@@ -144,7 +144,7 @@ def test_list_cancel_revocation_and_streaming_fail_closed(tmp_path):
         assert evidence[-2]["aie.resource"] == "a2a://task"
         assert evidence[-1]["aie.resource"] == "a2a://task/t2"
         before = len(Upstream.seen)
-        assert request(server, "/message:stream", "POST", {"message": {"messageId": "x"}}) == 400
+        assert request(server, "/extendedAgentCard") == 400
         assert len(Upstream.seen) == before
     finally:
         server.shutdown()
