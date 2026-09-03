@@ -9,7 +9,7 @@
 
 ## Proven locally
 
-- 118/118 tests on the S1.2 runner-portability tree
+- 119/119 tests on the S1.2 runner-portability tree
 - two independent runtime paths for C0/D1/T1/F1 semantics
 - durable replay, budget, revocation, and evidence state
 - strict X.509-SVID identity validation and Workload API consumption
@@ -17,6 +17,7 @@
 - gateway federation and privacy-minimized evidence
 - S1.1/S1.2 harness generation and fail-closed promotion reporting
 - provider-neutral self-hosted runner preflight and canonical promotion wrapper
+- isolated per-run Python environment on persistent self-hosted runners
 
 ## External blockers
 

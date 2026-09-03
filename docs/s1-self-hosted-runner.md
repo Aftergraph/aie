@@ -23,11 +23,14 @@ GitHub routes the job only to a runner matching every label.
 
 - Linux x86-64
 - passwordless `sudo` for the isolated SPIRE/workload-user lab
-- Python 3, Git, curl, OpenSSL, Node/npm/npx, `runuser`, and `useradd`
+- Python 3 with working `venv` support (`python3-venv` on distributions that package it separately)
+- Git, curl, OpenSSL, Node/npm/npx, `runuser`, and `useradd`
 - outbound HTTPS to GitHub, npm registry, and PyPI
 - at least 3 GiB free under `/tmp`
 - checkout readability for isolated lab users
 - free loopback ports `18081`, `18443`, `18444`, `19080`, `19081`, and `3000`
+
+The wrapper creates a fresh virtual environment under `$AIE_S1_DEPS/venv` for each run. It does not install project dependencies into the host's system Python.
 
 ## Execution
 

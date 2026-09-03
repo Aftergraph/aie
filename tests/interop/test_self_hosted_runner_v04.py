@@ -57,3 +57,13 @@ def test_blocked_github_hosted_external_probe_is_manual_only_until_runner_issue_
     workflow = (ROOT / '.github/workflows/aie-v04-s1-external-interop.yml').read_text(encoding='utf-8')
     assert 'workflow_dispatch:' in workflow
     assert '\n  push:\n' not in workflow
+
+
+def test_external_host_uses_isolated_python_environment_instead_of_mutating_system_python():
+    preflight = (ROOT / 'interop/s1/scripts/preflight_external_host.sh').read_text(encoding='utf-8')
+    wrapper = (ROOT / 'interop/s1/scripts/run_external_host.sh').read_text(encoding='utf-8')
+    assert 'python3 -m venv' in preflight
+    assert 'AIE_S1_VENV' in wrapper
+    assert '-m venv' in wrapper
+    assert '"$AIE_S1_VENV/bin/python" -m pip install' in wrapper
+    assert 'export AIE_S1_PYTHON="$AIE_S1_VENV/bin/python"' in wrapper

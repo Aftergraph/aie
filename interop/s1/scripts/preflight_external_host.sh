@@ -19,6 +19,13 @@ for cmd in bash curl git sha256sum tar python3 openssl node npm npx runuser user
   check_cmd "$cmd"
 done
 
+# Persistent runners must support an isolated Python environment; do not mutate system Python.
+VENV_PROBE=$(mktemp -d)
+if python3 -m venv "$VENV_PROBE/venv" >/dev/null 2>&1; then :; else
+  fail "python:venv-unavailable"
+fi
+rm -rf "$VENV_PROBE"
+
 # Lab scripts create isolated Unix workload users and manipulate SPIRE state.
 if ! sudo -n true 2>/dev/null; then
   fail "privilege:passwordless-sudo-required"

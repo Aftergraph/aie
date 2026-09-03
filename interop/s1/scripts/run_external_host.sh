@@ -12,13 +12,17 @@ mkdir -p "$AIE_S1_RESULTS"
 "$HERE/scripts/preflight_external_host.sh"
 
 PYTHON=${AIE_S1_BOOTSTRAP_PYTHON:-python3}
-# Canonical install shape: python -m pip install -e '.[dev,otel]'
-"$PYTHON" -m pip install --upgrade pip
-"$PYTHON" -m pip install -e '.[dev,otel]'
-"$PYTHON" -m pip install 'uv==0.8.17'
+export AIE_S1_VENV=${AIE_S1_VENV:-$AIE_S1_DEPS/venv}
+rm -rf "$AIE_S1_VENV"
+"$PYTHON" -m venv "$AIE_S1_VENV"
 
-export AIE_S1_PYTHON=$(command -v "$PYTHON")
-export AIE_S1_UV=$(command -v uv)
+# Canonical install shape: python -m pip install -e '.[dev,otel]'
+export AIE_S1_PYTHON="$AIE_S1_VENV/bin/python"
+"$AIE_S1_VENV/bin/python" -m pip install --upgrade pip
+"$AIE_S1_VENV/bin/python" -m pip install -e '.[dev,otel]'
+"$AIE_S1_VENV/bin/python" -m pip install 'uv==0.8.17'
+
+export AIE_S1_UV="$AIE_S1_VENV/bin/uv"
 export AIE_S1_NPX=$(command -v npx)
 
 sudo --preserve-env=AIE_S1_PYTHON,AIE_S1_UV,AIE_S1_NPX,AIE_S1_STATE,AIE_S1_RESULTS,AIE_S1_DEPS,GITHUB_ACTIONS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,GITHUB_WORKFLOW_REF \

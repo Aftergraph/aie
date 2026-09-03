@@ -39,7 +39,7 @@ python -m pip install -e '.[dev,otel]'
 pytest -q
 ```
 
-The S1.2 runner-portability branch was locally verified at **118/118 tests passing** before integration. This does not satisfy the external interoperability gate.
+The S1.2 runner-portability branch was locally verified at **119/119 tests passing** before integration. This does not satisfy the external interoperability gate.
 
 ## Status
 
