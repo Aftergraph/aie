@@ -2,12 +2,6 @@ name: AIE v0.4 S1 External Interop
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "src/aie_runtime/**"
-      - "interop/s1/**"
-      - "tests/**"
-      - ".github/workflows/aie-v04-s1-external-interop.yml"
 
 permissions:
   contents: read
@@ -37,7 +31,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev]'
           python -m pip install 'uv==0.8.17'
-
 
       - name: Capture absolute tool paths for sudo/runuser boundaries
         run: |

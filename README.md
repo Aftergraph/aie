@@ -19,7 +19,7 @@ Current maturity: **Draft 0.3 / v0.4 interoperability workstream**. This reposit
 
 ## Current promotion target
 
-`v0.4-S1.1` must prove on an external Linux runner:
+`v0.4-S1.2` must prove on an external Linux runner:
 
 - live SPIRE Server + Agent
 - X.509-SVID and trust-bundle rotation without gateway restart
@@ -30,6 +30,8 @@ Current maturity: **Draft 0.3 / v0.4 interoperability workstream**. This reposit
 
 Until those gates run externally, promotion remains `BLOCKED_EXTERNAL_RUNTIME`.
 
+The repository carries two manual execution providers for the same proof contract: the original GitHub-hosted diagnostic and a dedicated self-hosted Linux workflow using labels `[self-hosted, linux, x64, aie-interop]`. See `docs/s1-self-hosted-runner.md`.
+
 ## Local verification
 
 ```bash
@@ -37,7 +39,7 @@ python -m pip install -e '.[dev,otel]'
 pytest -q
 ```
 
-The canonical repository tree was locally verified at **114/114 tests passing** before publication.
+The S1.2 runner-portability branch was locally verified at **119/119 tests passing** before integration. This does not satisfy the external interoperability gate.
 
 ## Status
 
