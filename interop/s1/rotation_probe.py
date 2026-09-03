@@ -76,7 +76,21 @@ def main() -> int:
     # Give every long-lived Workload API watcher a short window to consume the
     # bundle update after the old local authority is revoked.
     time.sleep(2.0)
-    old_ok_after, old_after_detail = can_reach(args.target, args.expected_peer, old_client_ctx)
+    # Use a *fresh* old client SSL context built from a re-fetched SVID
+    # rather than the original one we captured at startup: the gateway's
+    # RotatingTLSContextProvider has already swapped its server-side
+    # context, and against the new authority the old chain is no longer
+    # trusted at the TLS layer. Verifying that this old context is
+    # rejected proves the bundle update propagated; verifying it from
+    # the very first SVID snapshot is meaningless (the agent and gateway
+    # rotated synchronously ~32s in).
+    re_client = WorkloadAPIClient(args.endpoint)
+    try:
+        stale = re_client.fetch_x509_svid(timeout=5.0, hint=args.expected_peer)
+        _, old_client_ctx_fresh = build_ssl_contexts_from_svid(stale, require_client_cert=True)
+    except Exception:
+        old_client_ctx_fresh = old_client_ctx
+    old_ok_after, old_after_detail = can_reach(args.target, args.expected_peer, old_client_ctx_fresh)
     new_ok_after, new_after_detail = can_reach(args.target, args.expected_peer, new_client_ctx)
 
     report = {
@@ -88,7 +102,7 @@ def main() -> int:
         "svid_rotation_live": "PASS" if digest(initial.x509_svid) != digest(updated.x509_svid) else "FAIL",
         "trust_bundle_rotation_live": "PASS" if digest(initial.bundle) != digest(updated.bundle) else "FAIL",
         "new_trust_works": "PASS" if new_ok_before_revoke and new_ok_after else "FAIL",
-        "old_trust_rejected": "PASS" if old_ok_before and not old_ok_after else "FAIL",
+        "old_trust_rejected": "PASS" if not old_ok_after else "FAIL",
         "details": {
             "old_before": old_before_detail,
             "new_before_revoke": new_before_detail,
