@@ -87,3 +87,19 @@ def test_pinned_runner_disables_automatic_updates_and_documents_manual_upgrade_o
     assert '--disableupdate' in script
     assert 'automatic updates' in doc.lower()
     assert 'manual' in doc.lower()
+
+
+def test_bootstrap_rolls_back_privileged_sudoers_grant_on_incomplete_installation():
+    script = BOOTSTRAP.read_text(encoding='utf-8')
+    assert 'BOOTSTRAP_COMPLETE=0' in script
+    assert 'rollback_privilege' in script
+    assert 'rm -f "$SUDOERS_FILE"' in script
+    assert 'trap cleanup EXIT' in script
+    assert 'BOOTSTRAP_COMPLETE=1' in script
+
+
+def test_removal_revokes_sudoers_grant_even_when_github_deregistration_fails():
+    script = REMOVE.read_text(encoding='utf-8')
+    assert 'cleanup_privilege' in script
+    assert 'trap cleanup_privilege EXIT' in script
+    assert 'rm -f "$SUDOERS_FILE"' in script

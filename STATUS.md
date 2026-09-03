@@ -9,7 +9,7 @@
 
 ## Proven locally
 
-- 127/127 tests on the S1.2 runner-provisioning tree
+- 129/129 tests on the S1.2 runner-provisioning tree
 - two independent runtime paths for C0/D1/T1/F1 semantics
 - durable replay, budget, revocation, and evidence state
 - strict X.509-SVID identity validation and Workload API consumption
@@ -20,6 +20,7 @@
 - isolated per-run Python environment on persistent self-hosted runners
 - pinned/checksum-verified GitHub Actions Runner bootstrap with non-root service identity and controlled deregistration
 - main-only root-capable workflow with immutable checkout/upload Action pins
+- fail-safe rollback/revocation of the dedicated runner sudoers grant
 
 ## External blockers
 

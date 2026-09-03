@@ -35,7 +35,17 @@ install -d -m 0750 -o "$RUNNER_USER" -g "$RUNNER_USER" "$RUNNER_HOME"
 [[ ! -e "$RUNNER_HOME/.runner" ]] || fail "$RUNNER_HOME is already configured; remove/deregister it first"
 
 TMP_DIR=$(mktemp -d)
-cleanup() { rm -rf "$TMP_DIR"; }
+BOOTSTRAP_COMPLETE=0
+SUDOERS_INSTALLED=0
+rollback_privilege() {
+  if [[ "$BOOTSTRAP_COMPLETE" != 1 && "$SUDOERS_INSTALLED" == 1 ]]; then
+    rm -f "$SUDOERS_FILE" || true
+  fi
+}
+cleanup() {
+  rm -rf "$TMP_DIR"
+  rollback_privilege
+}
 trap cleanup EXIT
 ARCHIVE="$TMP_DIR/$ARCHIVE_NAME"
 curl --fail --location --silent --show-error "$DOWNLOAD_URL" -o "$ARCHIVE"
@@ -53,6 +63,7 @@ printf '%s ALL=(ALL) NOPASSWD: ALL\n' "$RUNNER_USER" > "$TMP_SUDOERS"
 chmod 0440 "$TMP_SUDOERS"
 visudo -cf "$TMP_SUDOERS" >/dev/null
 install -o root -g root -m 0440 "$TMP_SUDOERS" "$SUDOERS_FILE"
+SUDOERS_INSTALLED=1
 chmod 0440 "$SUDOERS_FILE"
 visudo -cf "$SUDOERS_FILE" >/dev/null
 
@@ -78,5 +89,6 @@ rm -rf "$PREFLIGHT_OUT"
 runuser -u "$RUNNER_USER" -- env AIE_S1_RESULTS="$PREFLIGHT_OUT" \
   bash "$ROOT/interop/s1/scripts/preflight_external_host.sh"
 
+BOOTSTRAP_COMPLETE=1
 printf 'AIE self-hosted runner configured: name=%s labels=%s repo=%s\n' \
   "$RUNNER_NAME" "$RUNNER_LABELS" "$REPO_URL"

@@ -69,6 +69,8 @@ The script:
 7. installs and starts the runner as a system service under `aie-runner`;
 8. runs `preflight_external_host.sh` as the runner identity.
 
+If bootstrap fails after installing the dedicated sudoers grant, its EXIT cleanup rolls that grant back. A half-configured runner may still require GitHub-side deregistration, but it is not left with the S1 lab's passwordless-root capability.
+
 The registration token is consumed from `AIE_RUNNER_REGISTRATION_TOKEN`, is never printed by the script, and is unset after registration.
 
 ## External proof execution
@@ -86,4 +88,4 @@ export AIE_RUNNER_REMOVAL_TOKEN='<fresh-removal-token>'
 sudo -E bash interop/s1/scripts/remove_actions_runner.sh
 ```
 
-The removal script stops/uninstalls the service, deregisters the runner, removes the dedicated sudoers grant, unsets `AIE_RUNNER_REMOVAL_TOKEN`, and deliberately preserves `/opt/actions-runner` for audit/recovery. Delete that directory separately only after evidence and diagnostics have been retained.
+The removal script stops/uninstalls the service, attempts GitHub deregistration, and always revokes the dedicated sudoers grant on exit, including when the removal token is invalid or expired. It unsets `AIE_RUNNER_REMOVAL_TOKEN` and deliberately preserves `/opt/actions-runner` for audit/recovery. Delete that directory separately only after evidence and diagnostics have been retained.

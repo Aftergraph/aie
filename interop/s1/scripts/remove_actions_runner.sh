@@ -8,6 +8,11 @@ SUDOERS_FILE=/etc/sudoers.d/aie-interop-runner
 
 fail() { printf 'AIE runner removal: %s\n' "$1" >&2; exit 2; }
 [[ ${EUID:-$(id -u)} -eq 0 ]] || fail "run as root"
+cleanup_privilege() {
+  unset AIE_RUNNER_REMOVAL_TOKEN || true
+  rm -f "$SUDOERS_FILE" || true
+}
+trap cleanup_privilege EXIT
 : "${AIE_RUNNER_REMOVAL_TOKEN:?Set a fresh GitHub runner removal token}"
 [[ -d "$RUNNER_HOME" ]] || fail "$RUNNER_HOME does not exist"
 
@@ -19,8 +24,5 @@ fi
 if [[ -x ./config.sh && -e .runner ]]; then
   runuser -u "$RUNNER_USER" -- ./config.sh remove --token "$AIE_RUNNER_REMOVAL_TOKEN"
 fi
-unset AIE_RUNNER_REMOVAL_TOKEN
-
-# Revoke the dedicated lab privilege, but preserve runner files for audit/recovery.
-rm -f "$SUDOERS_FILE"
+# The EXIT trap revokes the dedicated lab privilege and clears token state even on errors.
 printf 'AIE self-hosted runner deregistered. Files preserved at %s.\n' "$RUNNER_HOME"
