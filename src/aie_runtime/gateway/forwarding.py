@@ -7,7 +7,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
-from .spiffe_http import post_bytes_with_peer_identity
+from .spiffe_http import request_bytes_with_peer_identity
 
 
 class UpstreamTransportError(RuntimeError):
@@ -49,7 +49,6 @@ def _is_aie_header(name: str) -> bool:
     return lowered == "aie" or lowered.startswith("aie-") or lowered.startswith("x-aie-")
 
 
-
 class HTTPUpstreamForwarder:
     def __init__(
         self,
@@ -84,16 +83,33 @@ class HTTPUpstreamForwarder:
         forwarded.setdefault("Content-Type", "application/json")
         return forwarded
 
-    def forward(self, *, protocol: str, headers: Mapping[str, str], body: Mapping[str, Any]) -> UpstreamResponse:
-        raw = json.dumps(body, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    def _target_url(self, target: str | None) -> str:
+        if target is None:
+            return self.url
+        return self.url.rstrip("/") + "/" + target.lstrip("/")
+
+    def forward_http(
+        self,
+        *,
+        method: str,
+        target: str | None,
+        headers: Mapping[str, str],
+        raw_body: bytes = b"",
+    ) -> UpstreamResponse:
+        url = self._target_url(target)
         out_headers = self._headers(headers)
         ssl_context = self.ssl_context_provider() if self.ssl_context_provider is not None else self.ssl_context
         if self.expected_peer_spiffe_id is not None:
             if ssl_context is None:
                 raise UpstreamTransportError("expected peer SPIFFE identity requires TLS context")
             try:
-                status, response_body, response_headers = post_bytes_with_peer_identity(
-                    self.url, raw, out_headers, timeout=self.timeout, ssl_context=ssl_context,
+                status, response_body, response_headers = request_bytes_with_peer_identity(
+                    method,
+                    url,
+                    raw_body,
+                    out_headers,
+                    timeout=self.timeout,
+                    ssl_context=ssl_context,
                     expected_peer_spiffe_id=self.expected_peer_spiffe_id,
                 )
                 return UpstreamResponse(status, response_body, response_headers)
@@ -103,10 +119,10 @@ class HTTPUpstreamForwarder:
                     raise UpstreamAuthenticationError(str(exc)) from exc
                 raise UpstreamTransportError(str(exc)) from exc
         request = urllib.request.Request(
-            self.url,
-            data=raw,
+            url,
+            data=raw_body or None,
             headers=out_headers,
-            method="POST",
+            method=method,
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout, context=ssl_context) as response:
@@ -119,3 +135,16 @@ class HTTPUpstreamForwarder:
             return UpstreamResponse(int(exc.code), exc.read(), {k: v for k, v in exc.headers.items()})
         except Exception as exc:
             raise UpstreamTransportError(str(exc)) from exc
+
+    def bind_http(self, *, method: str, target: str, raw_body: bytes = b""):
+        parent = self
+
+        class _BoundForwarder:
+            def forward(self, *, protocol: str, headers: Mapping[str, str], body: Mapping[str, Any]):
+                return parent.forward_http(method=method, target=target, headers=headers, raw_body=raw_body)
+
+        return _BoundForwarder()
+
+    def forward(self, *, protocol: str, headers: Mapping[str, str], body: Mapping[str, Any]) -> UpstreamResponse:
+        raw = json.dumps(body, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        return self.forward_http(method="POST", target=None, headers=headers, raw_body=raw)
