@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4-S2 A2A TCK preparation — 2026-09-03
+
+- pin official `a2aproject/a2a-tck` package `1.0.0` to commit `263b9cfaf16a554bdfb166a7ba5b67716e946349`
+- record official A2A Protocol `1.0` and Python SDK `1.0.2` reference provenance without claiming the SUT implementation language
+- add deterministic TCK checkout/venv preparation with official-origin verification, exact commit verification, upstream `uv.lock` via `uv sync --frozen --no-dev`, and package-version verification
+- add three-leg MUST-level official TCK runner for direct, SPIFFE-proxied, and SPIFFE+AIE endpoints across all TCK transports
+- add fail-closed comparator for requirement IDs, official test IDs, per-transport status maps, transport coverage, Agent Card semantic capability parity, and per-leg official TCK process exit status
+- emit `AIE_S2_A2A_INTEROP.json` with `BLOCKED_BY_S1` until the canonical S1 promotion attestation passes profile/revision, live SPIRE, external gate, leg parity, explicit zero semantic delta, and GitHub Actions provenance validation; malformed evidence blocks rather than crashes
+- add regression coverage for empty MUST sets, missing transports, false capability advertisement, parity mismatch, malformed S1 evidence, and non-zero TCK execution
+
 ## v0.3.0 distribution metadata hardening — 2026-09-03
 
 - raise the setuptools build-backend floor to `>=77.0.3` for PEP 639/SPDX license metadata
