@@ -4,7 +4,7 @@
 
 - Core semantics: **AIE Draft 0.3**
 - Reference gateway: **0.3.x**
-- Current workstream: **v0.4-S1.2 external MCP/SPIRE interoperability**
+- Current workstream: **v0.4-S1.2 external MCP/SPIRE interoperability + S2 A2A transport preparation**
 - Promotion: **BLOCKED_EXTERNAL_RUNTIME** until official external gates pass
 
 ## Proven locally
@@ -12,6 +12,7 @@
 - repository baseline: 131/131 tests passing before the S2 preparation slice
 - current S2 A2A-preparation targeted suite: 16/16 tests passing after provenance, S1-attestation, malformed-evidence, and TCK-process-status hardening
 - an earlier integrated S2 review tree reached 144/144; after scratch recovery the current PR head is reported conservatively as baseline + targeted evidence rather than claiming a fresh full-suite rerun
+- tenant-aware A2A HTTP+JSON non-streaming implementation: 5/5 targeted tests passing on the v0.3 clean-room runtime, with 87/87 clean-room regression tests passing after the slice
 - two independent runtime paths for C0/D1/T1/F1 semantics
 - durable replay, budget, revocation, and evidence state
 - strict X.509-SVID identity validation and Workload API consumption
@@ -26,6 +27,14 @@
 - weekly Dependabot coverage for Python and GitHub Actions dependencies
 - wheel metadata emits SPDX `Apache-2.0`, bundled `LICENSE`, Markdown README, author, keywords, and canonical project URLs
 - official A2A TCK 1.0.0 preparation harness pinned to commit `263b9cfa…`, using the upstream frozen `uv.lock`, official-origin verification, exact TCK exit-status evidence, and direct/SPIFFE/AIE MUST parity hard-gated on a validated canonical S1 attestation
+- A2A HTTP+JSON non-streaming admission/forwarding for send, task list/get, and cancel; REST method/path/query/body are preserved upstream, tenant is bound into the authority resource, ordinary GETs remain repeatable, and send/cancel remain replay-protected
+
+## Not yet claimed
+
+- HTTP+JSON SSE streaming (`/message:stream`, `/tasks/{id}:subscribe`)
+- HTTP+JSON push-notification resource coverage
+- A2A gRPC 1.0 binding
+- official external A2A TCK PASS across direct/SPIFFE/AIE legs
 
 ## External blockers
 
