@@ -77,10 +77,11 @@ finally:
 PY
 fi
 
-python3 - "$FAILURES" "$OUT" <<'PY'
+python3 - "$FAILURES" "$OUT" "${AIE_S1_ALL_PORTS[*]}" <<'PY'
 import json, platform, shutil, sys
 from pathlib import Path
 failures = [line.strip() for line in Path(sys.argv[1]).read_text().splitlines() if line.strip()]
+ports = [int(p) for p in sys.argv[3].split()]
 commands = ['bash','curl','git','sha256sum','tar','python3','openssl','node','npm','npx','runuser','useradd']
 report = {
     'profile': 'AIE v0.4-S1 external-host preflight',
@@ -88,7 +89,7 @@ report = {
     'platform': platform.platform(),
     'machine': platform.machine(),
     'commands': {name: shutil.which(name) for name in commands},
-    'ports': list(ports),
+    'ports': ports,
     'failures': failures,
 }
 Path(sys.argv[2]).write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
