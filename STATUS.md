@@ -9,7 +9,7 @@
 
 ## Proven locally
 
-- 129/129 tests on the S1.2 runner-provisioning tree
+- 130/130 tests on the current repository-hygiene tree
 - two independent runtime paths for C0/D1/T1/F1 semantics
 - durable replay, budget, revocation, and evidence state
 - strict X.509-SVID identity validation and Workload API consumption
@@ -21,6 +21,7 @@
 - pinned/checksum-verified GitHub Actions Runner bootstrap with non-root service identity and controlled deregistration
 - main-only root-capable workflow with immutable checkout/upload Action pins
 - fail-safe rollback/revocation of the dedicated runner sudoers grant
+- weekly Dependabot coverage for Python and GitHub Actions dependencies
 
 ## External blockers
 
