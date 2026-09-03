@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.0 distribution metadata hardening — 2026-09-03
+
+- raise the setuptools build-backend floor to `>=77.0.3` for PEP 639/SPDX license metadata
+- declare `Apache-2.0` via `License-Expression` and include the top-level `LICENSE` in built wheels
+- use the repository README as the Markdown package long description
+- add author, keywords, and canonical Repository/Issues/Changelog/Documentation URLs to wheel metadata
+- add executable regression coverage for the PEP 621/PEP 639 project metadata contract
+
 ## v0.4-S1.2 runner provisioning — 2026-09-03
 
 - pin GitHub Actions Runner `v2.337.0` with the official Linux x64 SHA-256
