@@ -12,8 +12,13 @@ cleanup() {
   mkdir -p "$AIE_S1_RESULTS/lab-logs"
   if [[ -d "$AIE_S1_STATE/logs" ]]; then cp -a "$AIE_S1_STATE/logs/." "$AIE_S1_RESULTS/lab-logs/" 2>/dev/null || true; fi
   # Proof runs as root via sudo(8) but the checkout is owned by the runner
-  # user; root-owned result files break the next run's `git clean`.
-  if [[ -n "${SUDO_USER:-}" ]]; then chown -R "$SUDO_USER" "$AIE_S1_RESULTS" 2>/dev/null || true; fi
+  # user; root-owned result files, __pycache__ dirs, and egg-info break the
+  # next run's `git clean -ffdx`.
+  if [[ -n "${SUDO_USER:-}" ]]; then
+    chown -R "$SUDO_USER" "$AIE_S1_RESULTS" 2>/dev/null || true
+    find "$ROOT/src" -name __pycache__ -exec chown -R "$SUDO_USER" {} + 2>/dev/null || true
+    chown -R "$SUDO_USER" "$ROOT/src/"*.egg-info 2>/dev/null || true
+  fi
   "$HERE/scripts/stop_lab.sh" || true
 }
 trap cleanup EXIT
