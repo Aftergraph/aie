@@ -1,0 +1,52 @@
+name: AIE v0.4 S1 Self-hosted External Interop
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aie-v04-s1-self-hosted
+  cancel-in-progress: false
+
+jobs:
+  external-interop:
+    runs-on: [self-hosted, linux, x64, aie-interop]
+    timeout-minutes: 45
+    env:
+      AIE_S1_STATE: /tmp/aie-v04-s1
+      AIE_S1_RESULTS: ${{ github.workspace }}/interop/s1/results
+      AIE_S1_DEPS: /tmp/aie-v04-s1-deps
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: External-host preflight
+        run: bash interop/s1/scripts/preflight_external_host.sh
+
+      - name: Run canonical S1 proof
+        run: bash interop/s1/scripts/run_external_host.sh
+
+      - name: Show canonical promotion report
+        if: always()
+        run: |
+          if [ -f interop/s1/results/AIE_S1_1_PROMOTION.json ]; then
+            cat interop/s1/results/AIE_S1_1_PROMOTION.json
+          fi
+
+      - name: Upload external evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aie-v04-s1-self-hosted-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            interop/s1/results/preflight.json
+            interop/s1/results/AIE_S1_1_PROMOTION.json
+            interop/s1/results/**/checks.json
+            interop/s1/results/**/command.txt
+            interop/s1/results/**/stdout.log
+            interop/s1/results/**/stderr.log
+            interop/s1/results/rotation/*.json
+            interop/s1/results/lab-logs/*.log
