@@ -36,8 +36,6 @@ def must_requirements(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def card_semantics(report: dict[str, Any]) -> dict[str, Any]:
     card = report.get('agent_card') or {}
-    # Endpoint URL is expected to differ between direct/proxied legs. The
-    # advertised protocol/capability/skill semantics must not.
     return {
         'protocolVersion': card.get('protocolVersion'),
         'capabilities': card.get('capabilities'),
@@ -79,12 +77,17 @@ def validate_s1_attestation(report: dict[str, Any]) -> list[str]:
             errors.append(f'leg_status:{name}')
         if not check_ids:
             errors.append(f'leg_checks_empty:{name}')
-        if int(leg.get('checks_total') or 0) != len(check_ids):
+        try:
+            checks_total = int(leg.get('checks_total'))
+        except (TypeError, ValueError):
             errors.append(f'leg_checks_total:{name}')
+        else:
+            if checks_total != len(check_ids):
+                errors.append(f'leg_checks_total:{name}')
     if not (check_sets[0] == check_sets[1] == check_sets[2]):
         errors.append('leg_check_id_parity')
 
-    if report.get('semantic_delta') not in ([], None):
+    if report.get('semantic_delta') != []:
         errors.append('semantic_delta')
 
     provenance = report.get('provenance') or {}
@@ -105,6 +108,9 @@ def main() -> int:
     parser.add_argument('--direct', type=Path, required=True)
     parser.add_argument('--spiffe', type=Path, required=True)
     parser.add_argument('--aie', type=Path, required=True)
+    parser.add_argument('--direct-exit-code', type=Path, required=True)
+    parser.add_argument('--spiffe-exit-code', type=Path, required=True)
+    parser.add_argument('--aie-exit-code', type=Path, required=True)
     parser.add_argument('--s1-promotion', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
@@ -166,6 +172,15 @@ def main() -> int:
             transport_coverage = False
             semantic_delta.append(f'transport-coverage:{name}:missing={missing}:empty={empty}')
 
+    exit_codes = {
+        'direct': int(args.direct_exit_code.read_text(encoding='utf-8').strip()),
+        'spiffe': int(args.spiffe_exit_code.read_text(encoding='utf-8').strip()),
+        'aie': int(args.aie_exit_code.read_text(encoding='utf-8').strip()),
+    }
+    for name, code in exit_codes.items():
+        if code != 0:
+            semantic_delta.append(f'tck-exit-code:{name}:{code}')
+
     card_signatures = {name: card_semantics(report) for name, report in reports.items()}
     cards_equal = card_signatures['direct'] == card_signatures['spiffe'] == card_signatures['aie']
     if not cards_equal:
@@ -205,6 +220,7 @@ def main() -> int:
                 'report': str(path),
                 'must_count': len(must[name]),
                 'must_compatibility': (reports[name].get('summary') or {}).get('must_compatibility'),
+                'tck_exit_code': exit_codes[name],
             }
             for name, path in [('direct', args.direct), ('spiffe', args.spiffe), ('aie', args.aie)]
         },
