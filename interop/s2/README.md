@@ -16,19 +16,22 @@ The official TCK runs gRPC, JSON-RPC and HTTP+JSON when no transport filter is s
 `collect_report.py` compares:
 
 1. identical official MUST requirement-ID sets across all three legs;
-2. identical per-requirement status and per-transport result maps;
-3. a semantically identical Agent Card capability/skill surface, excluding the endpoint URL;
-4. a passing direct baseline;
-5. the canonical S1 promotion dependency.
+2. identical official test-ID, status, and per-transport result maps;
+3. non-empty coverage of gRPC, JSON-RPC, and HTTP+JSON on every leg;
+4. a semantically identical Agent Card capability/skill surface, excluding the endpoint URL;
+5. a passing direct baseline;
+6. a structurally valid canonical S1 external attestation.
+
+The S1 dependency is not satisfied by a bare `{"promotion":"PASS"}`. The attestation must carry the expected S1 profile/revision, live SPIRE result, all external rotation/trust gates, three passing legs with identical non-empty check IDs, zero semantic delta, and GitHub Actions run provenance.
 
 The output is `AIE_S2_A2A_INTEROP.json`.
 
 - semantic mismatch or failing direct MUST -> `FAIL`
-- perfect A2A parity but S1 not PASS -> `BLOCKED_BY_S1`
-- perfect parity + S1 PASS -> `PASS`
+- perfect A2A parity but invalid/non-PASS S1 attestation -> `BLOCKED_BY_S1`
+- perfect parity + validated S1 PASS -> `PASS`
 
 A local synthetic test of the comparator is not A2A interoperability evidence. Raw official TCK reports remain required.
 
 ## Preparing the official TCK
 
-`interop/s2/scripts/prepare_official_a2a.sh` clones the official repository, checks out the pinned commit detached, creates a fresh `.venv`, installs that checkout, and verifies its declared package version before any S2 run.
+`interop/s2/scripts/prepare_official_a2a.sh` clones the official repository when absent and verifies an existing checkout still points at the pinned official origin. It checks out the pinned commit detached, requires the upstream `uv.lock`, creates a fresh environment with `uv sync --frozen --no-dev`, and verifies the TCK package version before any S2 run. Open-ended `pip install -e .` resolution is intentionally not used for the conformance environment.
