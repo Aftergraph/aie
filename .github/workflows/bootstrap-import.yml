@@ -1,0 +1,56 @@
+name: Bootstrap AIE source tree
+
+on:
+  push:
+    branches:
+      - bootstrap/aie-v0.4-s1.1
+    paths:
+      - .bootstrap/source.zip
+      - .github/workflows/bootstrap-import.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aie-bootstrap-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify bootstrap bundle
+        run: |
+          cd .bootstrap
+          sha256sum -c SHA256SUMS
+
+      - name: Expand curated source tree
+        run: |
+          tmp="$(mktemp -d)"
+          unzip -q .bootstrap/source.zip -d "$tmp"
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.bootstrap/' \
+            --exclude='.github/workflows/bootstrap-import.yml' \
+            "$tmp/" ./
+          rm -rf .bootstrap
+          rm -f .github/workflows/bootstrap-import.yml
+
+      - name: Verify imported tree
+        run: |
+          python -m compileall -q src interop/s1
+          PYTHONPATH=src pytest -q
+
+      - name: Commit canonical source import
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore: import AIE v0.4-S1.1 canonical source tree'
+          git push origin HEAD:${GITHUB_REF_NAME}
