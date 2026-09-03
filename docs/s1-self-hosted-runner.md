@@ -4,7 +4,7 @@ This runner exists to change the **execution provider**, not the AIE promotion c
 
 ## Security boundary
 
-The workflow is `workflow_dispatch` only and grants `GITHUB_TOKEN` only `contents: read`. Use a dedicated or ephemeral Linux runner for this public repository. Do not place unrelated long-lived secrets on the host. Checkout explicitly sets `persist-credentials: false` and `clean: true` so the ephemeral job token is not retained in the persistent workspace and stale untracked files are removed before execution.
+The workflow is `workflow_dispatch` only, refuses to execute unless `github.ref == refs/heads/main`, and grants `GITHUB_TOKEN` only `contents: read`. Use a dedicated or ephemeral Linux runner for this public repository. Do not place unrelated long-lived secrets on the host. Checkout explicitly sets `persist-credentials: false` and `clean: true` so the ephemeral job token is not retained in the persistent workspace and stale untracked files are removed before execution. The root-capable workflow pins `actions/checkout` and `actions/upload-artifact` by immutable commit SHA rather than mutable major tags.
 
 The S1 lab needs root privileges to create isolated Unix workload users and operate the SPIRE lab. The bootstrap script refuses to grant that privilege unless `AIE_RUNNER_ENABLE_LAB_SUDO=1` is explicitly set. That opt-in is appropriate only on a dedicated or ephemeral host because trusted manual workflow code can then execute as root.
 
