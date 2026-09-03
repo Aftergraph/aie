@@ -24,9 +24,7 @@ class Upstream(BaseHTTPRequestHandler):
     def _handle(self):
         length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(length) if length else b""
-        type(self).seen.append(
-            (self.command, self.path, {key.lower(): value for key, value in self.headers.items()}, raw)
-        )
+        type(self).seen.append((self.command, self.path, {key.lower(): value for key, value in self.headers.items()}, raw))
         payload = b'{"ok":true}'
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -53,6 +51,7 @@ def gateway(tmp_path, revoked=False):
             "a2a://task",
             "a2a://tenant/acme/message/",
             "a2a://tenant/acme/task",
+            "a2a://tenant/tasks/task",
         ),
         NOW + timedelta(hours=1),
         100,
@@ -66,13 +65,17 @@ def gateway(tmp_path, revoked=False):
     )
 
 
-def serve(tmp_path, revoked=False):
+def serve(tmp_path, revoked=False, tenant=None):
     Upstream.seen = []
     upstream = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
     threading.Thread(target=upstream.serve_forever, daemon=True).start()
     gw = gateway(tmp_path, revoked)
-    forwarder = A2AHTTPJSONForwarder(f"http://127.0.0.1:{upstream.server_port}/api")
-    server = create_a2a_http_json_server(gw, forwarder, trust_header_identity=True)
+    server = create_a2a_http_json_server(
+        gw,
+        A2AHTTPJSONForwarder(f"http://127.0.0.1:{upstream.server_port}/api"),
+        tenant=tenant,
+        trust_header_identity=True,
+    )
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, upstream, gw
 
@@ -100,7 +103,7 @@ def request(server, path, method="GET", body=None):
 
 
 def test_send_replay_tenant_and_header_stripping(tmp_path):
-    server, upstream, gw = serve(tmp_path)
+    server, upstream, gw = serve(tmp_path, tenant="acme")
     try:
         body = {"message": {"messageId": "m1"}}
         assert request(server, "/acme/message:send", "POST", body) == 200
@@ -116,16 +119,13 @@ def test_send_replay_tenant_and_header_stripping(tmp_path):
 
 
 def test_repeatable_get_query_and_canonicalization(tmp_path):
-    server, upstream, gw = serve(tmp_path)
+    server, upstream, gw = serve(tmp_path, tenant="acme")
     try:
         path = "/acme/tasks/task%20one?historyLength=2"
         assert request(server, path) == 200
         assert request(server, path) == 200
         assert len(Upstream.seen) == 2
-        assert all(
-            value[0] == "GET" and value[1] == "/api/acme/tasks/task%20one?historyLength=2"
-            for value in Upstream.seen
-        )
+        assert all(value[0] == "GET" and value[1] == "/api/acme/tasks/task%20one?historyLength=2" for value in Upstream.seen)
         assert gw.store.list_evidence()[-1]["aie.resource"] == "a2a://tenant/acme/task/task one"
         before = len(Upstream.seen)
         assert request(server, "/acme/tasks/task%2Fescape") == 400
@@ -135,7 +135,7 @@ def test_repeatable_get_query_and_canonicalization(tmp_path):
         upstream.shutdown()
 
 
-def test_list_cancel_revocation_cross_tenant_and_streaming_fail_closed(tmp_path):
+def test_list_cancel_revocation_and_streaming_fail_closed(tmp_path):
     server, upstream, gw = serve(tmp_path)
     try:
         assert request(server, "/tasks") == 200
@@ -144,7 +144,6 @@ def test_list_cancel_revocation_cross_tenant_and_streaming_fail_closed(tmp_path)
         assert evidence[-2]["aie.resource"] == "a2a://task"
         assert evidence[-1]["aie.resource"] == "a2a://task/t2"
         before = len(Upstream.seen)
-        assert request(server, "/evil/tasks/t1") == 403
         assert request(server, "/message:stream", "POST", {"message": {"messageId": "x"}}) == 400
         assert len(Upstream.seen) == before
     finally:
@@ -155,6 +154,19 @@ def test_list_cancel_revocation_cross_tenant_and_streaming_fail_closed(tmp_path)
     try:
         assert request(server, "/message:send", "POST", {"message": {"messageId": "x"}}) == 403
         assert Upstream.seen == []
+    finally:
+        server.shutdown()
+        upstream.shutdown()
+
+
+def test_configured_tenant_disambiguates_reserved_names_and_rejects_wrong_tenant(tmp_path):
+    server, upstream, gw = serve(tmp_path, tenant="tasks")
+    try:
+        assert request(server, "/tasks/tasks") == 200
+        assert gw.store.list_evidence()[-1]["aie.resource"] == "a2a://tenant/tasks/task"
+        before = len(Upstream.seen)
+        assert request(server, "/evil/tasks") == 400
+        assert len(Upstream.seen) == before
     finally:
         server.shutdown()
         upstream.shutdown()
