@@ -62,7 +62,15 @@ class SQLiteGatewayStore:
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as con:
             con.execute(
-                "INSERT OR IGNORE INTO outcomes(action_id,status,protocol,error_code,created_at) VALUES(?,?,?,?,?)",
+                """
+                INSERT INTO outcomes(action_id,status,protocol,error_code,created_at)
+                VALUES(?,?,?,?,?)
+                ON CONFLICT(action_id) DO UPDATE SET
+                    status=excluded.status,
+                    protocol=excluded.protocol,
+                    error_code=excluded.error_code,
+                    created_at=excluded.created_at
+                """,
                 (action_id, status, protocol, error_code, now),
             )
 
