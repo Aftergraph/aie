@@ -7,7 +7,8 @@ mkdir -p "$RESULT_ROOT"
 NPX=${AIE_S1_NPX:-$(command -v npx)}
 MCP_PORT=${AIE_S1_MCP_PORT:-3000}
 run_leg() {
-  local name=$1 url=$2 dir="$RESULT_ROOT/$name"
+  local name=$1 url=$2
+  local dir="$RESULT_ROOT/$name"
   rm -rf "$dir"; mkdir -p "$dir"; cd "$dir"
   printf '%q ' "$NPX" --yes "@modelcontextprotocol/conformance@$MCP_CONFORMANCE_VERSION" server --url "$url" --requirements "$MCP_PROTOCOL_REVISION" > command.txt
   printf '\n' >> command.txt
