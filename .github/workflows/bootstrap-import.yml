@@ -3,6 +3,7 @@ name: Bootstrap AIE source tree
 on:
   push:
     branches:
+      - main
       - bootstrap/aie-v0.4-s1.1
     paths:
       - .bootstrap/source.zip
