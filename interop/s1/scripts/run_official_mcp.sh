@@ -10,9 +10,9 @@ run_leg() {
   local name=$1 url=$2
   local dir="$RESULT_ROOT/$name"
   rm -rf "$dir"; mkdir -p "$dir"; cd "$dir"
-  printf '%q ' "$NPX" --yes "@modelcontextprotocol/conformance@$MCP_CONFORMANCE_VERSION" server --url "$url" --requirements "$MCP_PROTOCOL_REVISION" > command.txt
+  printf '%q ' "$NPX" --yes "@modelcontextprotocol/conformance@$MCP_CONFORMANCE_VERSION" server --url "$url" --requirements "$MCP_PROTOCOL_REVISION" --output-dir "$dir" > command.txt
   printf '\n' >> command.txt
-  "$NPX" --yes "@modelcontextprotocol/conformance@$MCP_CONFORMANCE_VERSION" server --url "$url" --requirements "$MCP_PROTOCOL_REVISION" >stdout.log 2>stderr.log
+  "$NPX" --yes "@modelcontextprotocol/conformance@$MCP_CONFORMANCE_VERSION" server --url "$url" --requirements "$MCP_PROTOCOL_REVISION" --output-dir "$dir" >stdout.log 2>stderr.log
   local ec=$?
   printf '%s\n' "$ec" > exit_code.txt
   return 0
