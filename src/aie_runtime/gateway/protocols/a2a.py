@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Mapping
+from urllib.parse import quote
 
 from ..model import NormalizedAction, ProtocolError
 
@@ -21,6 +22,7 @@ def normalize_a2a_request(headers: Mapping[str, str], body: Mapping[str, Any]) -
         raise ProtocolError("AIE-PROTO-001", f"unsupported A2A version: {version!r}")
 
     method = str(body.get("method") or "")
+    tenant = _header(headers, "AIE-A2A-Tenant")
     request_id = body.get("id")
     if not method or request_id is None:
         raise ProtocolError("AIE-PROTO-002", "A2A JSON-RPC method and id are required")
@@ -32,6 +34,10 @@ def normalize_a2a_request(headers: Mapping[str, str], body: Mapping[str, Any]) -
         capability = "a2a.message.send"
         resource = f"a2a://message/{message_id}"
         subject_id = message_id
+    elif method == "tasks/list":
+        capability = "a2a.task.list"
+        resource = "a2a://task"
+        subject_id = None
     elif method.startswith("tasks/"):
         op = method.split("/", 1)[1].replace("/", ".")
         task_id = str(params.get("id") or params.get("taskId") or request_id)
@@ -43,6 +49,10 @@ def normalize_a2a_request(headers: Mapping[str, str], body: Mapping[str, Any]) -
         capability = f"a2a.{normalized_method}"
         resource = f"a2a://operation/{method}"
         subject_id = None
+
+    if tenant:
+        encoded_tenant = quote(str(tenant), safe="")
+        resource = f"a2a://tenant/{encoded_tenant}/" + resource[len("a2a://"):]
 
     return NormalizedAction(
         protocol="a2a",
