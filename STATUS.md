@@ -12,6 +12,7 @@
 - repository baseline: 131/131 tests passing before the S2 preparation slice
 - current S2 A2A-preparation targeted suite: 16/16 tests passing after provenance, S1-attestation, malformed-evidence, and TCK-process-status hardening
 - an earlier integrated S2 review tree reached 144/144; after scratch recovery the current PR head is reported conservatively as baseline + targeted evidence rather than claiming a fresh full-suite rerun
+- A2A HTTP+JSON SSE/rotation slice: 11/11 targeted tests and 93/93 clean-room gateway regression tests passing locally; this is scoped implementation evidence, not official external TCK evidence
 - two independent runtime paths for C0/D1/T1/F1 semantics
 - durable replay, budget, revocation, and evidence state
 - strict X.509-SVID identity validation and Workload API consumption
