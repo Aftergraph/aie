@@ -9,7 +9,7 @@
 
 ## Proven locally
 
-- 130/130 tests on the current repository-hygiene tree
+- 131/131 tests on the current package-metadata tree
 - two independent runtime paths for C0/D1/T1/F1 semantics
 - durable replay, budget, revocation, and evidence state
 - strict X.509-SVID identity validation and Workload API consumption
@@ -22,6 +22,7 @@
 - main-only root-capable workflow with immutable checkout/upload Action pins
 - fail-safe rollback/revocation of the dedicated runner sudoers grant
 - weekly Dependabot coverage for Python and GitHub Actions dependencies
+- wheel metadata emits SPDX `Apache-2.0`, bundled `LICENSE`, Markdown README, author, keywords, and canonical project URLs
 
 ## External blockers
 

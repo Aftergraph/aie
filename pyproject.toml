@@ -1,11 +1,16 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "aie-reference-runtime"
 version = "0.3.0"
 description = "AIE Draft 0.3 reference runtime and real-trust MCP/A2A admission gateway"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{name = "Jonas Abde"}]
+keywords = ["ai-agents", "agentic-ai", "authorization", "governance", "interoperability", "mcp", "a2a", "spiffe"]
 requires-python = ">=3.11"
 dependencies = [
   "PyYAML>=6",
@@ -24,6 +29,12 @@ otel = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.urls]
+Repository = "https://github.com/JonasAbde/aie"
+Issues = "https://github.com/JonasAbde/aie/issues"
+Changelog = "https://github.com/JonasAbde/aie/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/JonasAbde/aie/tree/main/docs"
 
 [project.scripts]
 aie-conformance = "aie_runtime.conformance:main"
