@@ -34,6 +34,9 @@ jobs:
         python: ["3.11", "3.12", "3.13"]
     env:
       UV_PREFIX: /home/aie-runner/.local
+      # PYBIN gets rewritten by the first step; the rest of the
+      # steps use bare `python` which works because the venv is
+      # prepended to PATH via VIRTUAL_ENV/PATH.
       PATH: /home/aie-runner/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       AIE_CI_RESULTS: /home/aie-runner/aie-ci-results/${{ github.run_id }}-${{ github.run_attempt }}
     steps:
@@ -42,10 +45,12 @@ jobs:
           persist-credentials: false
           clean: true
 
-      - name: Ensure uv + Python matrix available
+      - name: Ensure uv + Python matrix + venv available
         # Single static binary, user-local, no sudo. Builds the
         # matrix Pythons on demand (cached by uv after the first
-        # install). ~30s per build, ~120MB per Python.
+        # install). ~30s per build, ~120MB per Python. The venv
+        # makes bare `python` resolve to the right interpreter
+        # for every subsequent step.
         run: |
           set -euo pipefail
           export PATH="$UV_PREFIX/bin:$PATH"
@@ -56,7 +61,15 @@ jobs:
           uv python install ${{ matrix.python }}
           PYBIN="$(uv python find ${{ matrix.python }})"
           echo "PYBIN=$PYBIN" >> "$GITHUB_ENV"
-          "$PYBIN" --version
+          # Create a per-Python venv rooted in the runner's work
+          # dir so it's cleaned up with the job. The venv's
+          # bin/ goes to the FRONT of PATH so bare `python` and
+          # `pip` resolve to the right interpreter.
+          VENV="$RUNNER_TEMP/venv-${{ matrix.python }}"
+          "$PYBIN" -m venv "$VENV"
+          echo "VIRTUAL_ENV=$VENV" >> "$GITHUB_ENV"
+          echo "$VENV/bin" >> "$GITHUB_PATH"
+          "$VENV/bin/python" --version
 
       - name: Install package
         run: |
