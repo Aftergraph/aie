@@ -41,6 +41,23 @@ mkdir -p "$AIE_S1_STATE" "$AIE_S1_RESULTS"
 
 "$HERE/scripts/start_spire.sh"
 "$HERE/scripts/register_workloads.sh"
+
+# Wait for the agent to sync registrations before components fetch SVIDs.
+# Entries are created server-side; the agent caches them asynchronously, and
+# bridge/gateway startup fails closed ("no identity issued") if it races ahead.
+AGENT_API_SOCK="$AIE_S1_STATE/spire-agent/public/api.sock"
+ready=0
+for _ in $(seq 1 150); do
+  ready=0
+  for user in aie-s1-client aie-s1-gateway aie-s1-server; do
+    if runuser -u "$user" -- "$SPIRE_ROOT/bin/spire-agent" api fetch x509 -socketPath "$AGENT_API_SOCK" -timeout 2 >/dev/null 2>&1; then
+      ready=$((ready+1))
+    fi
+  done
+  [[ $ready -eq 3 ]] && break
+  sleep .2
+done
+[[ $ready -eq 3 ]] || { echo "SPIRE workload SVIDs not issued for all lab users" >&2; exit 1; }
 "$HERE/scripts/start_components.sh"
 
 # Give listeners a bounded readiness window before mutating trust state.
