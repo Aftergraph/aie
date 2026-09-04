@@ -6,7 +6,7 @@ from typing import Any, Callable, Iterable
 
 from .errors import AIEError
 from .capabilities import capability_set_allows, capability_set_attenuates
-from .store import InMemoryState
+from .store import InMemoryState, BudgetLedger
 
 
 @dataclass(frozen=True)
@@ -73,12 +73,14 @@ class AdmissionEngine:
         clock: Callable[[], datetime] | None = None,
         trusted_issuers: set[str] | None = None,
         supported_extensions: set[str] | None = None,
+        budget_ledger: BudgetLedger | None = None,
     ):
         self.state = state
         self.policy = policy
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.trusted_issuers = trusted_issuers or set()
         self.supported_extensions = supported_extensions or set()
+        self.budget_ledger = budget_ledger
 
     def _emit(self, event_type: str, **attributes: Any) -> None:
         self.state.evidence.append(EvidenceRecord(event_type, self.clock(), attributes))
@@ -114,11 +116,15 @@ class AdmissionEngine:
         self._check_extensions(request)
         lease = self._resolve(request)
 
-        if request.budget_cost < 0 or request.budget_cost > lease.budget_remaining:
+        # HC4: Budget ledger enforcement - reserve on admission
+        if self.budget_ledger and not self.budget_ledger.reserve(
+            request.action_id, request.budget_cost, self.clock()
+        ):
             raise AIEError("AIE-BUDGET-001")
 
-        lease.budget_remaining -= request.budget_cost
-        self._emit("budget.reserved", actionId=request.action_id, amount=request.budget_cost)
+        if request.budget_cost < 0:
+            raise AIEError("AIE-BUDGET-001")
+
         try:
             decision_input = {
                 "principal": request.principal_id,
@@ -142,7 +148,9 @@ class AdmissionEngine:
             self.state.outcomes[request.action_id] = outcome
             return outcome
         except Exception:
-            lease.budget_remaining += request.budget_cost
+            # Refund reservation on failure
+            if self.budget_ledger:
+                self.budget_ledger.refund(request.action_id)
             raise
 
     def revalidate(self, action_id: str) -> None:
@@ -161,10 +169,16 @@ class AdmissionEngine:
             self._resolve(request)
         except AIEError:
             raise
-        # Budget floor: reserved cost must still be coverable at execution time.
-        lease = self.state.leases[request.lease_id]
-        if request.budget_cost > lease.budget_remaining:
-            raise AIEError("AIE-BUDGET-001")
+
+        # HC4: Budget floor - must still be coverable at execution time
+        if self.budget_ledger:
+            # reserved_usd already includes this action's cost from admission
+            if self.budget_ledger.spent_usd + self.budget_ledger.reserved_usd > self.budget_ledger.budget_usd:
+                raise AIEError("AIE-BUDGET-002")
+        else:
+            lease = self.state.leases[request.lease_id]
+            if request.budget_cost > lease.budget_remaining:
+                raise AIEError("AIE-BUDGET-002")
         self._emit("action.revalidated", actionId=action_id, leaseId=request.lease_id)
 
     def delegate(
@@ -188,8 +202,13 @@ class AdmissionEngine:
         for child_prefix in resource_prefixes:
             if not any(child_prefix.startswith(parent_prefix) for parent_prefix in parent.resource_prefixes):
                 raise AIEError("AIE-DELEG-001")
-        if budget < 0 or budget > parent.budget_remaining:
-            raise AIEError("AIE-BUDGET-001")
+        # HC4: Budget ledger enforcement for delegation chains
+        if self.budget_ledger:
+            if budget > self.budget_ledger.available:
+                raise AIEError("AIE-BUDGET-001")
+        else:
+            if budget < 0 or budget > parent.budget_remaining:
+                raise AIEError("AIE-BUDGET-001")
         if child_principal_id not in self.state.principals:
             raise AIEError("AIE-AUTH-001")
         parent.budget_remaining -= budget
