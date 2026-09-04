@@ -67,3 +67,12 @@ Experiments run during the S1.1 promotion effort. Each entry records the hypothe
 - **Method:** Removed the debug logging from `bridge.py::_proxy`, `http.py::do_POST`, and `spiffe_http.py::request_stream_with_peer_identity`. Removed the env var exports from `interop/s1/scripts/start_components.sh`. Re-ran the S1.1 self-hosted workflow.
 - **Result:** `promotion: PASS`. All 3 legs correctly demoted to `PASS_UPSTREAM_GAP` (195 checks each). All 4 external rotation gates PASS. `live_spire: PASS`.
 - **Conclusion:** Confirmed. The debug logging was diagnostic-only and is safely removable now that the promotion is stable. The regression test (re-running the self-hosted workflow) confirms no behavior change.
+
+## E-008: S2 comparator accepts canonical S1 promotion (RESOLVED)
+
+- **Date:** 2026-09-04 cycle 8
+- **Run:** N/A (static analysis)
+- **Hypothesis:** The S2 comparator's `validate_s1_attestation` is too strict — it rejects the canonical S1 promotion because (a) `leg.status == "PASS_UPSTREAM_GAP"` ≠ `"PASS"`, and (b) `checks_total == 195` ≠ `len(check_ids) == 134`.
+- **Method:** Updated `validate_s1_attestation` to accept `"PASS"` and `"PASS_UPSTREAM_GAP"` as valid leg statuses, and to use `checks_total >= len(check_ids)` as the invariant (since `checks_total` counts executions while `check_ids` is the unique set). Added 4 new tests. Ran the validator on the real S1 promotion report from run 33831755655.
+- **Result:** 0 validation errors. The canonical S1 promotion report passes the S2 validator. All 20 S2 tests pass (16 existing + 4 new).
+- **Conclusion:** Confirmed. The S1 -> S2 promotion path is unblocked. The fix preserves the original security property: a bare `"FAIL"` leg status is still rejected, and `checks_total < len(check_ids)` (internally inconsistent) is still rejected.

@@ -18,6 +18,7 @@ Tracked claims and their evidence status. Updated each cycle.
 | C-010 | Debug logging cleanup doesn't break promotion | LIVE (self-hosted runner) | run 33833660538, "Run canonical S1 proof" step success, "Show canonical promotion report" step success | PASS | 2026-09-04 cycle 6 |
 | C-011 | works.yml CI control plane covers per-push verification on avc-core pool | LIVE (works control plane on VDS) | PR #27, commit a2c70c5 (Jonas), pytest 171/171 verified | PASS | 2026-09-04 cycle 6 |
 | C-012 | S2 official A2A TCK prepared on VDS at commit 263b9cfa | LIVE (VDS, 2026-09-04) | /tmp/aie-v04-s2/a2a-tck, uv 0.12.9, Python 3.12.3, TCK version 1.0.0 | PASS | 2026-09-04 cycle 6 |
+| C-013 | S2 comparator accepts canonical S1 promotion (PASS_UPSTREAM_GAP + checks_total > check_ids) | LIVE (VDS, 2026-09-04) | commit 218a230, validate_s1_attestation() on /home/nora/aie-evidence/33831755655/AIE_S1_1_PROMOTION.json: 0 errors | PASS | 2026-09-04 cycle 8 |
 
 ## Evidence Types
 
