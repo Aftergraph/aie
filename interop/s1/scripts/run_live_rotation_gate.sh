@@ -49,6 +49,19 @@ for _ in $(seq 1 900); do [[ -f "$ROT/probe-rotated" ]] && break; sleep .1; done
 "$SERVER" localauthority x509 taint -socketPath "$SOCKET" -authorityID "$OLD_AUTH" -output json > "$ROT/authority-tainted.json" 2>/dev/null || true
 "$SERVER" localauthority x509 revoke -socketPath "$SOCKET" -authorityID "$OLD_AUTH" -output json > "$ROT/authority-revoked.json" 2>/dev/null || true
 touch "$ROT/revoke.signal"
+
+# ponytail: wait for the agent's Workload API stream to deliver the
+# post-revoke bundle (old CA removed) before the probe runs the
+# `old_trust_rejected` check. The probe's original `old_client_ctx`
+# was built with the old CA in its trust store; for that context to
+# be rejected by the rotated gateway, the gateway must have picked up
+# the new bundle and rebuilt its server context without the old CA.
+# SPIRE `revoke` updates the server bundle immediately but the
+# gateway's RotatingTLSContextProvider needs one full Workload API
+# stream tick to rebuild the SSL context. 2s covers that on every
+# lab we've seen with 60s SVID TTLs and a 90s CA TTL.
+sleep 2
+
 wait "$PROBE_PID"
 
 "$AIE_S1_PYTHON" - "$ROT/rotation-probe.json" "$ROT/rotation-gates.json" <<'PY'

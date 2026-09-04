@@ -78,6 +78,16 @@ def test_rotation_gate_uses_spire_local_authority_rotation_and_requires_old_trus
     assert "localauthority x509 revoke" in script
     assert "old_trust_rejected" in script
     assert "rotation_probe.py" in script
+    # ponytail: after SPIRE `revoke`, the gateway's
+    # RotatingTLSContextProvider needs a brief window to consume the
+    # post-revoke bundle from the Workload API stream and rebuild the
+    # SSL context. Without this wait the probe races the gateway and
+    # `old_trust_rejected` flakily passes/fails depending on the
+    # push-to-rebuild interval.
+    assert "sleep 2" in script, (
+        "rotation gate must wait briefly after revoke for the gateway "
+        "to consume the post-revoke bundle before running the probe"
+    )
 
 
 def test_external_ci_driver_refuses_promotion_unless_canonical_report_passes():
@@ -121,6 +131,30 @@ def test_spire_lab_uses_short_agent_and_workload_svid_ttls_for_bounded_rotation_
     config = (ROOT / "interop/s1/spire/server.conf").read_text(encoding="utf-8")
     assert 'default_x509_svid_ttl = "60s"' in config
     assert 'agent_ttl = "60s"' in config
+
+
+def test_spire_lab_uses_short_ca_ttl_so_bundle_shrinks_within_rotation_window():
+    # ponytail: with the SPIRE 24h default `ca_ttl`, the old CA stays
+    # in the trust bundle for a day after `revoke`, so the gateway's
+    # trust store never shrinks and the `old_trust_rejected` gate
+    # cannot observe bundle propagation. The lab shortens `ca_ttl`
+    # to a value greater than the SVID TTL but small enough that the
+    # bundle shrinks within the rotation window. Production
+    # deployments should keep the 24h default and enforce revocation
+    # at the gateway via CRL/OCSP filtering.
+    config = (ROOT / "interop/s1/spire/server.conf").read_text(encoding="utf-8")
+    assert 'ca_ttl' in config
+    # Extract the ca_ttl value to make sure it's a short bounded value.
+    import re
+    match = re.search(r'ca_ttl\s*=\s*"(\d+)([smh])"', config)
+    assert match, f"expected `ca_ttl = \"<value><unit>\"` in server.conf, got: {config!r}"
+    value = int(match.group(1))
+    unit = match.group(2)
+    seconds = value * (1 if unit == "s" else 60 if unit == "m" else 3600)
+    assert seconds <= 600, (
+        f"ca_ttl must be short enough to shrink the bundle within a "
+        f"bounded lab rotation window; got {seconds}s"
+    )
 
 
 def test_rotation_probe_uses_original_old_context_for_trust_rejection_check():
