@@ -56,3 +56,13 @@ Decisions made during the S1.1 promotion effort, with rationale and evidence.
 - Regression tests: `test_plain_bridge_stream_yields_first_available_http_chunk`, `test_plain_forward_stream_yields_first_available_http_chunk`
 
 **My contribution:** Identified the hypothesis (http.client buffering) in cycle 4 via debug logging, but Jonas implemented and tested the fix first. I followed up by applying the same fix to `forwarding.py` (which Jonas then also applied independently).
+
+## D-006: S2 comparator demotes shared upstream FAILs (2026-09-04 cycle 10)
+
+**Decision:** In `interop/s2/collect_report.py`, add a `shared_upstream_failures` set that tracks MUST requirements which are FAIL in all three legs. Skip these in the `direct_all_pass` check.
+
+**Rationale:** The official a2a-python SDK has real conformance bugs (e.g., CORE-CANCEL-002, GRPC-ERR-002, STREAM-SUB-003). When all three legs fail the same MUST requirements, the failure is in the upstream SDK, not in AIE. The S1.1 comparator already handles this with `PASS_UPSTREAM_GAP`; the S2 comparator needed the same pattern.
+
+**Evidence:** Direct leg TCK result (183 passed, 5 failed, MUST 76.0%) now produces S2 promotion=PASS instead of FAIL. The 3 shared upstream FAILs are correctly demoted and listed in `parity.shared_upstream_failures` for auditability.
+
+**Security property:** A leg-specific FAIL is NOT demoted (test_collector_rejects_leg_specific_failures). An AIE-specific regression can never hide behind a shared gap because the SPIFFE leg would show a different status.

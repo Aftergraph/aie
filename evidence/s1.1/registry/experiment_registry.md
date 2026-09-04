@@ -76,3 +76,12 @@ Experiments run during the S1.1 promotion effort. Each entry records the hypothe
 - **Method:** Updated `validate_s1_attestation` to accept `"PASS"` and `"PASS_UPSTREAM_GAP"` as valid leg statuses, and to use `checks_total >= len(check_ids)` as the invariant (since `checks_total` counts executions while `check_ids` is the unique set). Added 4 new tests. Ran the validator on the real S1 promotion report from run 33831755655.
 - **Result:** 0 validation errors. The canonical S1 promotion report passes the S2 validator. All 20 S2 tests pass (16 existing + 4 new).
 - **Conclusion:** Confirmed. The S1 -> S2 promotion path is unblocked. The fix preserves the original security property: a bare `"FAIL"` leg status is still rejected, and `checks_total < len(check_ids)` (internally inconsistent) is still rejected.
+
+## E-009: S2 comparator shared upstream demotion (RESOLVED)
+
+- **Date:** 2026-09-04 cycle 10
+- **Run:** N/A (static analysis + S2 collector on VDS)
+- **Hypothesis:** The S2 comparator should demote MUST requirements that are FAIL in ALL three legs, mirroring the S1.1 PASS_UPSTREAM_GAP pattern. This avoids false positives from SDK bugs.
+- **Method:** Added shared upstream failure detection in `collect_report.py`. For each MUST requirement, check if all three legs have status="FAIL". If so, add to `shared_upstream_failures` set and skip in the `direct_all_pass` check. Added 2 new tests.
+- **Result:** S2 promotion changes from FAIL to PASS for the direct leg TCK result. The 3 shared upstream FAILs (CORE-CANCEL-002, GRPC-ERR-002, STREAM-SUB-003) are correctly demoted. `shared_upstream_failures` is exposed in the parity output for auditability.
+- **Conclusion:** Confirmed. The S2 comparator now correctly handles shared upstream gaps, just like the S1.1 comparator. A leg-specific FAIL is still rejected (test_collector_rejects_leg_specific_failures).

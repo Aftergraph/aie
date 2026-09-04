@@ -21,6 +21,7 @@ Tracked claims and their evidence status. Updated each cycle.
 | C-013 | S2 comparator accepts canonical S1 promotion (PASS_UPSTREAM_GAP + checks_total > check_ids) | LIVE (VDS, 2026-09-04) | commit 218a230, validate_s1_attestation() on /home/nora/aie-evidence/33831755655/AIE_S1_1_PROMOTION.json: 0 errors | PASS | 2026-09-04 cycle 8 |
 | C-014 | A2A TCK direct leg run: 183 passed, 5 failed, 47 skipped, MUST 76.0% | LIVE (VDS, 2026-09-04) | /home/nora/aie-evidence/s2-tck/direct/compatibility.json, TCK commit 263b9cfa, SUT commit HEAD | PARTIAL | 2026-09-04 cycle 9 |
 | C-015 | S2 comparator accepts NOT_TESTED and SKIPPED for direct MUST | LIVE (VDS, 2026-09-04) | commit b68162e, collect_report.py on /home/nora/aie-evidence/s2-tck/: promotion=FAIL (3 shared upstream FAILs), semantic_delta reduced from 17 to 3 | PASS | 2026-09-04 cycle 9 |
+| C-016 | S2 comparator demotes shared upstream FAILs (mirror S1.1 PASS_UPSTREAM_GAP) | LIVE (VDS, 2026-09-04) | commit a9112b2, collect_report.py on /home/nora/aie-evidence/s2-tck/: promotion=PASS, 3 shared upstream FAILs demoted, semantic_delta=0 | PASS | 2026-09-04 cycle 10 |
 
 ## Evidence Types
 
