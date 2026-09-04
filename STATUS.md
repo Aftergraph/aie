@@ -4,7 +4,7 @@
 
 - Core semantics: **AIE Draft 0.3**
 - Reference gateway: **0.3.x**
-- Current workstream: **v0.4-S1.2 external MCP/SPIRE interoperability**
+- Current workstream: **v0.4-S1.1 external MCP/SPIRE interoperability (PASS) → v0.4-S1.2 (next)**
 - Promotion: **PASS** (run 33831755655, 2026-09-04)
 
 ## Proven locally
