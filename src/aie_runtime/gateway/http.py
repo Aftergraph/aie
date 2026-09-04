@@ -89,16 +89,29 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
         try:
+            import time as _time
+            _debug = os.environ.get("AIE_GATEWAY_DEBUG") == "1"
+            _first = getattr(self, "_debug_stream_first_write", None)
             for chunk in stream:
                 if not chunk:
-                    # ponytail: an empty chunk is the upstream's signal that
-                    # the chunked stream is exhausted (the chunked terminator
-                    # already returned b"" from read). Break, not continue,
-                    # otherwise the next read blocks forever waiting for
-                    # more bytes that never come, the chunked terminator
-                    # is never written, and the SEP-2575 conformance client
-                    # times out waiting for the rest of the stream.
+                    if _debug and _first is not None:
+                        print(
+                            f"[gateway] _stream stream_exhausted "
+                            f"first_write_at={_first:.3f} now={_time.time():.3f} "
+                            f"delta={_time.time() - _first:.3f}s",
+                            file=sys.stderr,
+                            flush=True,
+                        )
                     break
+                if _debug and _first is None:
+                    _first = _time.time()
+                    self._debug_stream_first_write = _first
+                    print(
+                        f"[gateway] _stream first_chunk_to_client "
+                        f"chunk_len={len(chunk)} at={_first:.3f}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 self.wfile.write(f"{len(chunk):x}\r\n".encode("ascii") + chunk + b"\r\n")
                 self.wfile.flush()
             self.wfile.write(b"0\r\n\r\n")
