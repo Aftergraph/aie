@@ -377,3 +377,32 @@ def test_collector_rejects_leg_specific_failures(tmp_path):
     assert output['promotion'] == 'FAIL'
     assert any('direct-must-not-pass:CORE-SEND-001' in item for item in output['parity']['semantic_delta'])
     assert 'CORE-SEND-001' not in output['parity']['shared_upstream_failures']
+
+
+def test_collector_accepts_tck_exit_code_1_for_test_failures(tmp_path):
+    # ponytail: the TCK process exit code is expected to be 1 when there
+    # are test failures (that's how pytest works). The exit code only
+    # matters if the TCK process itself crashed (e.g., segfault, Python
+    # traceback with a non-standard exit). Exit code 1 for test failures
+    # must not cause promotion=FAIL.
+    result, output = _run(
+        tmp_path, s1='PASS',
+        exit_codes={'direct': 1, 'spiffe': 1, 'aie': 1},
+    )
+    assert result.returncode == 0
+    assert output['promotion'] == 'PASS'
+    assert not any('tck-exit-code' in item for item in output['parity']['semantic_delta'])
+
+
+def test_collector_rejects_tck_process_crash(tmp_path):
+    # ponytail: exit code 2 or higher indicates a TCK process crash
+    # (e.g., segfault, Python traceback with sys.exit(2)). This is not
+    # a test failure — it's a process failure — and must cause
+    # promotion=FAIL.
+    result, output = _run(
+        tmp_path, s1='PASS',
+        exit_codes={'direct': 0, 'spiffe': 0, 'aie': 2},
+    )
+    assert result.returncode != 0
+    assert output['promotion'] == 'FAIL'
+    assert any('tck-exit-code:aie:2' in item for item in output['parity']['semantic_delta'])

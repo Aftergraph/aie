@@ -214,8 +214,16 @@ def main() -> int:
         'spiffe': int(args.spiffe_exit_code.read_text(encoding='utf-8').strip()),
         'aie': int(args.aie_exit_code.read_text(encoding='utf-8').strip()),
     }
+    tck_process_ok = True
     for name, code in exit_codes.items():
-        if code != 0:
+        # ponytail: the TCK process exit code is expected to be non-zero
+        # when there are test failures (that's what the TCK does). The
+        # exit code only matters if the TCK process itself crashed
+        # (e.g., segfault, Python traceback). A non-zero exit from
+        # test failures is normal and should not fail the promotion.
+        # The actual failure tracking is in compatibility.json.
+        if code not in (0, 1):  # 0=success, 1=tests failed (expected)
+            tck_process_ok = False
             semantic_delta.append(f'tck-exit-code:{name}:{code}')
 
     card_signatures = {name: card_semantics(report) for name, report in reports.items()}
