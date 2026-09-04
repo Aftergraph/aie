@@ -5,11 +5,14 @@
 # self-hosted GH runner (aie-interop label) covers the S1 interop proof;
 # this file makes the works control plane cover per-push verification
 # with evidence on disk, published as a GitHub commit status
-# (context: works/aie).
+# (context: works-execution).
 #
-# Requirements.Pool pins execution to the avc-core worker (VDS).
-# cache: true on the test node lets byte-identical pushes skip the
-# ~24s install+pytest cycle.
+# Requirements.Pool pins execution to the avc-core pool (3 parallel
+# workers on the VDS). cache_key_inputs: [run, repository] makes the
+# RFC-0005 fingerprint source-invariant: identical pipeline definitions
+# hit the cache across pushes (~3s instead of ~26s). The command itself
+# embeds the source (fresh checkout per run), so excluding the SHA from
+# the key is safe.
 version: 1
 
 work:
@@ -32,4 +35,5 @@ work:
           python3 -m compileall -q src
           .venv-works/bin/python -m pytest -q
         cache: true
+        cache_key_inputs: [run, repository]
         timeout_s: 600
