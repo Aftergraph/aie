@@ -9,7 +9,7 @@
 
 ## Proven locally
 
-- repository baseline: 131/131 tests passing before the S2 preparation slice
+- repository baseline: 165/165 tests passing after SEP-2575 SSE relay fix + report shape fix (post-#25)
 - current S2 A2A-preparation targeted suite: 16/16 tests passing after provenance, S1-attestation, malformed-evidence, and TCK-process-status hardening
 - an earlier integrated S2 review tree reached 144/144; after scratch recovery the current PR head is reported conservatively as baseline + targeted evidence rather than claiming a fresh full-suite rerun
 - two independent runtime paths for C0/D1/T1/F1 semantics
@@ -26,6 +26,8 @@
 - weekly Dependabot coverage for Python and GitHub Actions dependencies
 - wheel metadata emits SPDX `Apache-2.0`, bundled `LICENSE`, Markdown README, author, keywords, and canonical project URLs
 - official A2A TCK 1.0.0 preparation harness pinned to commit `263b9cfa…`, using the upstream frozen `uv.lock`, official-origin verification, exact TCK exit-status evidence, and direct/SPIFFE/AIE MUST parity hard-gated on a validated canonical S1 attestation
+- SEP-2575 SSE stream relay (post-#25): bridge no longer hangs on the chunked terminator; upstream `text/event-stream` responses are forwarded as chunked transfer-encoding to the downstream client
+- in-house unit CI on the VDS self-hosted runner: 3.11/3.12/3.13 matrix runs `pip install -e .[dev,otel]` + `pytest -q` + `compileall` and posts the `ci/test (<py>)` check on the PR, so unit CI survives a GitHub Actions billing lock on the account
 
 ## External blockers
 
@@ -36,3 +38,5 @@ The hosted external probe is therefore manual-only while the blocker is unresolv
 The repository now contains a pinned self-hosted runner installer, but registration itself still requires a fresh short-lived GitHub repository runner token and a dedicated/ephemeral Linux host. The connected GitHub integration available in this session cannot issue runner registration/removal tokens or register the host directly.
 
 The next promotion proof remains live SPIRE + official MCP `2026-07-28` conformance parity across direct, bridge, and AIE legs. No provider may mark S1.2 green without that report and its raw evidence.
+
+GitHub Actions artifact storage quota is also exhausted on the `JonasAbde` account, so the S1.1 self-hosted workflow's `actions/upload-artifact` step fails after the promotion report is written. The in-house evidence is still on the VDS under `/home/nora/aie-evidence/<run_id>/`, mirrored to the runner's `_work/aie/aie/interop/s1/results/`. No live evidence is lost; only GH-side artifact retention is.

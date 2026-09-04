@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4-S1.2 SEP-2575 SSE stream passthrough — 2026-09-04
+
+- relay SEP-2575 `notifications/subscriptions/listen` and other `text/event-stream` upstream responses as chunked transfer-encoding to the downstream client; the bridge's `for chunk in stream` loop now `break`s on the empty-chunk terminator (previously `continue`d, which hung the bridge on the chunked terminator and dropped every SEP-2575 stream frame on the floor)
+- fix `s1_interop.build_report` to return the demoted `promoted_legs` so `leg.<name>.status` in the report shape matches the `promotion` decision; previously the report could say `promotion: PASS` while every leg was still `FAIL`, an incoherent contract
+- add in-house unit CI: `aie-v04-ci-self-hosted.yml` runs the 3.11/3.12/3.13 matrix on the VDS self-hosted runner via `uv` + per-job venv, so unit CI survives the GitHub Actions billing lock that previously blocked PR-side checks
+- add `tests/gateway/test_s1_bridge_v04.py::test_bridge_relays_sep2575_post_sse_acknowledged_frame` as a SEP-2575-specific regression that exercises the exact POST /mcp + text/event-stream + open-connection pattern the official conformance test uses
+- add `tools/ci_status_publisher.py` + `tests/test_ci_status_publisher.py` as a standalone commit-status poster for out-of-band CI scenarios (Windows local, manual canary, future webhooks); not invoked from the workflow itself because the in-house workflow's job result is already a commit-status check
+
 ## v0.4-S2 A2A TCK preparation — 2026-09-03
 
 - pin official `a2aproject/a2a-tck` package `1.0.0` to commit `263b9cfaf16a554bdfb166a7ba5b67716e946349`

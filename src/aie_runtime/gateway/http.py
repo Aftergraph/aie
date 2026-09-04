@@ -89,7 +89,14 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         try:
             for chunk in stream:
                 if not chunk:
-                    continue
+                    # ponytail: an empty chunk is the upstream's signal that
+                    # the chunked stream is exhausted (the chunked terminator
+                    # already returned b"" from read). Break, not continue,
+                    # otherwise the next read blocks forever waiting for
+                    # more bytes that never come, the chunked terminator
+                    # is never written, and the SEP-2575 conformance client
+                    # times out waiting for the rest of the stream.
+                    break
                 self.wfile.write(f"{len(chunk):x}\r\n".encode("ascii") + chunk + b"\r\n")
                 self.wfile.flush()
             self.wfile.write(b"0\r\n\r\n")

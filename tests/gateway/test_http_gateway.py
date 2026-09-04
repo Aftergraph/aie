@@ -1,8 +1,11 @@
+import http.client
 import json
 import threading
 import urllib.error
 import urllib.request
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from aie_runtime.engine import AuthorityLease, Mission, Principal
 from aie_runtime.gateway.core import AIEGateway
@@ -145,3 +148,107 @@ def test_management_routes_require_admin_token(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_gateway_get_mcp_streams_text_event_stream_as_chunked_and_terminates(tmp_path):
+    """GET /mcp is the SEP-2575 notifications/subscriptions/listen path.
+
+    The upstream keeps the stream open after the initial ack and produces a
+    second SSE frame. The gateway must relay every frame as a chunked body
+    and finish with the `0\\r\\n\\r\\n` terminator. Regression: the previous
+    `if not chunk: continue` loop blocked forever on the upstream's chunked
+    terminator and never wrote the trailing `0\\r\\n\\r\\n`, so the SEP-2575
+    conformance client timed out waiting for the rest of the stream.
+    """
+    from aie_runtime.gateway.forwarding import UpstreamStreamResponse
+
+    @dataclass
+    class StubStream:
+        # ponytail: simulate a real chunked-HTTP upstream. The first two
+        # non-empty frames are the SEP-2575 ack and the post-subscription
+        # tools/list_changed notification. The third read returns b""
+        # (the chunked-encoding terminator `0\r\n\r\n`); the next read
+        # blocks because the upstream has nothing more to send. The
+        # previous bug (`if not chunk: continue`) loops on the b"" and
+        # then blocks forever on the next read; the fix breaks out so the
+        # gateway can write its own 0-length terminator and close the body.
+        chunks: list[bytes]
+        index: int = 0
+
+        def __iter__(self):
+            return self
+
+        def __next__(self) -> bytes:
+            if self.index >= len(self.chunks):
+                # ponytail: match the real upstream's behavior after the
+                # chunked terminator — block instead of StopIteration so
+                # the `continue`-vs-`break` regression is observable.
+                import time
+                time.sleep(60)
+                raise AssertionError("stub stream should not be drained past the terminator")
+            value = self.chunks[self.index]
+            self.index += 1
+            return value
+
+        def close(self) -> None:
+            pass
+
+    class StubForwarder:
+        def forward(self, *, protocol: str, headers, body):
+            raise AssertionError("forward should not be called on the GET /mcp SSE path")
+
+        def forward_stream(self, *, method: str, headers, body):
+            assert method == "GET"
+            frame_one = b"event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/subscriptions/ack\"}\n\n"
+            frame_two = b"event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/tools/list_changed\"}\n\n"
+            # ponytail: the trailing b"" is the upstream's chunked-encoding
+            # terminator (`0\r\n\r\n` rendered as an empty read). With the
+            # old `if not chunk: continue` bug, the relay hung here and
+            # never wrote its own body terminator to the client.
+            return UpstreamStreamResponse(
+                status=200,
+                headers={"Content-Type": "text/event-stream"},
+                stream=StubStream([frame_one, frame_two, b""]),
+            )
+
+    server, _ = build_server(tmp_path)
+    server.forwarders["mcp"] = StubForwarder()
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    raw = b""
+    sock = None
+    try:
+        # Use a raw socket so we can inspect the chunked-encoded body
+        # verbatim. http.client dechunks automatically on read(); we need
+        # the on-wire form to confirm the gateway wrote the 0-length
+        # terminator (the regression was that it never did).
+        import socket
+        sock = socket.create_connection(("127.0.0.1", server.server_port), timeout=5)
+        request = (
+            b"GET /mcp HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"X-AIE-Verified-Spiffe-ID: spiffe://example.org/agent/refund\r\n"
+            b"X-AIE-Identity-Verified: true\r\n"
+            b"Connection: close\r\n\r\n"
+        )
+        sock.sendall(request)
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            raw += chunk
+    finally:
+        if sock is not None:
+            sock.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    # ponytail: the gateway must produce well-formed chunked-encoding:
+    # each SSE frame becomes a length-prefixed chunk and the body ends
+    # with the mandatory 0-length terminator followed by CRLFCRLF.
+    head, _, body = raw.partition(b"\r\n\r\n")
+    assert b"200 OK" in head, f"expected 200 OK status line, got head: {head!r}"
+    assert b"Transfer-Encoding: chunked" in head, f"expected chunked header, got head: {head!r}"
+    assert b"event: message" in body, f"expected at least one SSE frame in body, got: {body!r}"
+    assert body.endswith(b"0\r\n\r\n"), f"body must end with chunked terminator, got: {body!r}"
