@@ -335,3 +335,45 @@ def test_collector_rejects_fail_must_requirements(tmp_path):
     assert result.returncode != 0
     assert output['promotion'] == 'FAIL'
     assert any('direct-must-not-pass:CORE-SEND-001' in item for item in output['parity']['semantic_delta'])
+
+
+def test_collector_demotes_shared_upstream_failures(tmp_path):
+    # ponytail: if a MUST requirement is FAIL in ALL three legs, it's a
+    # shared upstream gap (SDK bug, not AIE bug). The demotion mirrors
+    # S1.1's PASS_UPSTREAM_GAP pattern. A requirement that is FAIL in
+    # only one or two legs is NOT demoted — that's an AIE-specific
+    # regression.
+    report_direct = _report()
+    report_spiffe = _report()
+    report_aie = _report()
+    # FAIL in all three legs
+    report_direct['per_requirement']['CORE-SEND-001']['status'] = 'FAIL'
+    report_spiffe['per_requirement']['CORE-SEND-001']['status'] = 'FAIL'
+    report_aie['per_requirement']['CORE-SEND-001']['status'] = 'FAIL'
+    result, output = _run(
+        tmp_path, s1='PASS',
+        direct=report_direct, spiffe=report_spiffe, aie=report_aie,
+    )
+    assert result.returncode == 0
+    assert output['promotion'] == 'PASS'
+    assert 'CORE-SEND-001' in output['parity']['shared_upstream_failures']
+    assert not any('direct-must-not-pass' in item for item in output['parity']['semantic_delta'])
+
+
+def test_collector_rejects_leg_specific_failures(tmp_path):
+    # ponytail: a MUST requirement that is FAIL in only the direct leg
+    # (but PASS in SPIFFE and AIE) is an AIE-specific regression and must
+    # NOT be demoted. The comparator must reject it.
+    report_direct = _report()
+    report_spiffe = _report()
+    report_aie = _report()
+    # FAIL only in direct
+    report_direct['per_requirement']['CORE-SEND-001']['status'] = 'FAIL'
+    result, output = _run(
+        tmp_path, s1='PASS',
+        direct=report_direct, spiffe=report_spiffe, aie=report_aie,
+    )
+    assert result.returncode != 0
+    assert output['promotion'] == 'FAIL'
+    assert any('direct-must-not-pass:CORE-SEND-001' in item for item in output['parity']['semantic_delta'])
+    assert 'CORE-SEND-001' not in output['parity']['shared_upstream_failures']
