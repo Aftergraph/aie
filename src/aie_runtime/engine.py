@@ -116,14 +116,21 @@ class AdmissionEngine:
         self._check_extensions(request)
         lease = self._resolve(request)
 
-        # HC4: Budget ledger enforcement - reserve on admission
+        if request.budget_cost < 0 or request.budget_cost > lease.budget_remaining:
+            raise AIEError("AIE-BUDGET-001")
+
+        # HC4: Budget ledger enforcement - reserve on admission.
+        # Frozen evidence contract: budget.reserved is emitted here (first in the
+        # ordered evidence sequence) whether or not a ledger is attached; the
+        # ledger enforces the reservation ceiling, the lease keeps its
+        # budget_remaining mirror for conformance.
         if self.budget_ledger and not self.budget_ledger.reserve(
             request.action_id, request.budget_cost, self.clock()
         ):
             raise AIEError("AIE-BUDGET-001")
-
-        if request.budget_cost < 0:
-            raise AIEError("AIE-BUDGET-001")
+        self._emit("budget.reserved", actionId=request.action_id, amount=request.budget_cost)
+        if not self.budget_ledger:
+            lease.budget_remaining -= request.budget_cost
 
         try:
             decision_input = {
@@ -151,6 +158,8 @@ class AdmissionEngine:
             # Refund reservation on failure
             if self.budget_ledger:
                 self.budget_ledger.refund(request.action_id)
+            if not self.budget_ledger:
+                lease.budget_remaining += request.budget_cost
             raise
 
     def revalidate(self, action_id: str) -> None:
