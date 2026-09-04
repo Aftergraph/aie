@@ -15,6 +15,7 @@ Tracked claims and their evidence status. Updated each cycle.
 | C-007 | SEP-2575 aie/bridge legs pass conformance | LIVE (self-hosted runner) | run 33831755655, AIE_S1_1_PROMOTION.json::legs.aie.status=PASS_UPSTREAM_GAP, legs.bridge.status=PASS_UPSTREAM_GAP | PASS | 2026-09-04 cycle 5 |
 | C-008 | S1.1 promotion: PASS | LIVE (self-hosted runner) | run 33831755655, AIE_S1_1_PROMOTION.json::promotion=PASS | PASS | 2026-09-04 cycle 5 |
 | C-009 | read1() fix unblocks SSE relay through http.client | LIVE (self-hosted runner) | run 33831755655, commit dabd11c (Jonas), commit 2430a42 (Jonas), commit f7840fc (Jonas) | PASS | 2026-09-04 cycle 5 |
+| C-010 | Debug logging cleanup doesn't break promotion | LIVE (self-hosted runner) | run 33833660538, "Run canonical S1 proof" step success, "Show canonical promotion report" step success | PASS | 2026-09-04 cycle 6 |
 
 ## Evidence Types
 
