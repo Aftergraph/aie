@@ -1,0 +1,35 @@
+# works.yml — AIE CI pipeline, executed by the works-execution control plane.
+#
+# Hosted GitHub Actions CI is dead on this account (billing lock: every
+# hosted job fails with startup_failure before any step runs). The
+# self-hosted GH runner (aie-interop label) covers the S1 interop proof;
+# this file makes the works control plane cover per-push verification
+# with evidence on disk, published as a GitHub commit status
+# (context: works/aie).
+#
+# Requirements.Pool pins execution to the avc-core worker (VDS).
+# cache: true on the test node lets byte-identical pushes skip the
+# ~24s install+pytest cycle.
+version: 1
+
+work:
+  verify:
+    triggers:
+      - push
+      - pull_request
+
+    requirements:
+      confidence: development
+      os: linux
+      arch: amd64
+      pool: avc-core
+
+    nodes:
+      test:
+        run: |
+          uv venv .venv-works
+          uv pip install --python .venv-works/bin/python -q -e '.[dev,otel]'
+          python3 -m compileall -q src
+          .venv-works/bin/python -m pytest -q
+        cache: true
+        timeout_s: 600
