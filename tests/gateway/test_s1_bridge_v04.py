@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import json
 import threading
 import urllib.error
@@ -114,6 +115,73 @@ def test_server_bridge_enforces_expected_inbound_spiffe_identity(tmp_path):
         with pytest.raises(urllib.error.HTTPError) as exc:
             urllib.request.urlopen(req, context=wrong, timeout=3)
         assert exc.value.code == 403
+    finally:
+        bridge.shutdown(); bridge.server_close()
+        upstream.shutdown(); upstream.server_close()
+
+
+class _SseUpstream(BaseHTTPRequestHandler):
+    """Upstream that emits an SSE event stream over three flushes, then a
+    terminal zero-length chunk that closes the stream. Used to verify the
+    bridge relays text/event-stream responses as chunked transfer-encoding
+    rather than buffering them into a single Content-Length frame.
+    """
+    daemon = True
+
+    def log_message(self, format, *args):  # noqa: A003
+        return
+
+    def do_GET(self):  # noqa: N802
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        # NB: no Content-Length, no Transfer-Encoding: upstream uses chunked
+        # transfer-encoding for an indefinite stream. The bridge must preserve
+        # this when relaying to its client.
+        self.end_headers()
+        for frame in (b"event: open\ndata: hi\n\n", b"event: tick\ndata: 1\n\n", b"event: end\ndata: bye\n\n"):
+            self.wfile.write(frame)
+            self.wfile.flush()
+        # Conclude the upstream chunked stream.
+        self.wfile.write(b"0\r\n\r\n")
+        self.wfile.flush()
+
+
+def test_bridge_relays_sse_responses_as_chunked_transfer_encoding(tmp_path):
+    # ponytail: bridge with no SPIFFE outbound verification streams a
+    # text/event-stream upstream response as chunked transfer-encoding to the
+    # client. With SPIFFE verification enabled, the same code path uses
+    # request_stream_with_peer_identity and is covered by the SPIFFE-aware
+    # tests above; this test exercises the plain HTTP streaming path.
+    upstream = ThreadingHTTPServer(("127.0.0.1", 0), _SseUpstream)
+    _serve(upstream)
+
+    bridge = create_spiffe_bridge(
+        upstream_base_url=f"http://127.0.0.1:{upstream.server_port}",
+        host="127.0.0.1",
+        port=0,
+    )
+    _serve(bridge)
+    try:
+        # Read the response with a raw HTTP client so we can inspect the
+        # transfer-encoding and chunked framing on the wire.
+        conn = http.client.HTTPConnection("127.0.0.1", bridge.server_port, timeout=3)
+        conn.request("GET", "/mcp", headers={"Accept": "text/event-stream"})
+        response = conn.getresponse()
+        assert response.status == 200
+        assert response.getheader("Content-Type", "").startswith("text/event-stream")
+        assert response.getheader("Transfer-Encoding", "").lower() == "chunked"
+        # No Content-Length should be set on a chunked response.
+        assert response.getheader("Content-Length") is None
+        # Drain the chunked stream. http.client decodes the chunked framing
+        # for us: each upstream SSE frame becomes one chunk in the response,
+        # and the bridge's outgoing chunked terminator (0\r\n\r\n) appears at
+        # the end of body.
+        body = response.read()
+        assert body.startswith(b"event: open\ndata: hi\n\n")
+        assert b"event: tick\ndata: 1\n\n" in body
+        assert b"event: end\ndata: bye\n\n" in body
+        assert body.endswith(b"0\r\n\r\n")
     finally:
         bridge.shutdown(); bridge.server_close()
         upstream.shutdown(); upstream.server_close()

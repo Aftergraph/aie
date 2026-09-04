@@ -7,7 +7,7 @@ from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
 
 from .identity import validate_x509_svid_der
-from .spiffe_http import request_bytes_with_peer_identity
+from .spiffe_http import request_stream_with_peer_identity
 
 _HOP_BY_HOP = {
     "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
@@ -103,6 +103,29 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
+    def _send_stream(self, status: int, headers: Mapping[str, str], stream: Iterable[bytes]) -> None:
+        # ponytail: relay each chunk from the upstream stream as a single
+        # chunked-encoding frame and flush after every write so the client
+        # sees frames as soon as the upstream produces them. Closing the
+        # stream is the caller's responsibility (the connection is closed
+        # by the upstream function once iteration ends).
+        self.send_response(status)
+        for key, value in headers.items():
+            if key.lower() in _HOP_BY_HOP or key.lower() == "content-length":
+                continue
+            self.send_header(key, value)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        if self.command == "HEAD":
+            return
+        for chunk in stream:
+            if not chunk:
+                continue
+            self.wfile.write(f"{len(chunk):x}\r\n".encode("ascii") + chunk + b"\r\n")
+            self.wfile.flush()
+        self.wfile.write(b"0\r\n\r\n")
+        self.wfile.flush()
+
     def _proxy(self) -> None:
         if not self._client_allowed():
             self._send_raw(403, b'{"error":"spiffe_identity_denied"}', {"Content-Type": "application/json"})
@@ -116,7 +139,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             if self.server.expected_upstream_spiffe_id is not None:
                 if context is None:
                     raise RuntimeError("expected upstream SPIFFE identity requires TLS")
-                status, response_body, response_headers = request_bytes_with_peer_identity(
+                status, response_headers, stream = request_stream_with_peer_identity(
                     self.command,
                     url,
                     body,
@@ -126,13 +149,28 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     expected_peer_spiffe_id=self.server.expected_upstream_spiffe_id,
                 )
             else:
-                status, response_body, response_headers = _request_bytes(
+                status, response_headers, stream = _request_stream(
                     self.command, url, body, headers, timeout=self.server.timeout, ssl_context=context
                 )
         except Exception:
             self._send_raw(502, b'{"error":"bridge_upstream_failure"}', {"Content-Type": "application/json"})
             return
-        self._send_raw(status, response_body, response_headers)
+        if _is_event_stream(response_headers):
+            # ponytail: relay the SSE stream chunk-by-chunk so SEP-2575
+            # notifications/subscriptions/listen and any text/event-stream
+            # response are not buffered into a single Content-Length frame.
+            self._send_stream(status, response_headers, stream)
+            return
+        # Non-streaming response: drain into memory and send buffered. This
+        # preserves the previous Content-Length-based contract for everything
+        # else.
+        chunks = bytearray()
+        try:
+            for chunk in stream:
+                chunks.extend(chunk)
+        finally:
+            stream.close()
+        self._send_raw(status, bytes(chunks), response_headers)
 
     do_GET = _proxy
     do_POST = _proxy
@@ -141,6 +179,17 @@ class _BridgeHandler(BaseHTTPRequestHandler):
     do_DELETE = _proxy
     do_OPTIONS = _proxy
     do_HEAD = _proxy
+
+
+def _is_event_stream(headers: Mapping[str, str]) -> bool:
+    """True if any header advertises an SSE / event-stream response."""
+    for key, value in headers.items():
+        if key.lower() != "content-type":
+            continue
+        media_type = value.split(";", 1)[0].strip().lower()
+        if media_type == "text/event-stream":
+            return True
+    return False
 
 
 def _request_bytes(
@@ -169,6 +218,65 @@ def _request_bytes(
         return int(response.status), response.read(), {k: v for k, v in response.getheaders()}
     finally:
         conn.close()
+
+
+def _request_stream(
+    method: str,
+    url: str,
+    body: bytes,
+    headers: Mapping[str, str],
+    *,
+    timeout: float,
+    ssl_context: ssl.SSLContext | None,
+):
+    """Stream the upstream response body to the caller.
+
+    Returns (status, headers, chunk_iterable). The caller MUST iterate the
+    iterable to completion (or call its `close()` method) so the underlying
+    HTTPSConnection is released.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("bridge upstream must be http(s)")
+    conn_cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
+    kwargs: dict[str, Any] = {"timeout": timeout}
+    if parsed.scheme == "https":
+        kwargs["context"] = ssl_context
+    conn = conn_cls(parsed.hostname, parsed.port, **kwargs)
+    path = parsed.path or "/"
+    if parsed.query:
+        path += "?" + parsed.query
+    conn.request(method, path, body=body if body else None, headers=dict(headers))
+    response = conn.getresponse()
+    response_headers = {k: v for k, v in response.getheaders()}
+
+    class _Stream:
+        def __init__(self):
+            self._closed = False
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            chunk = response.read(8192)
+            if not chunk:
+                self._close()
+                raise StopIteration
+            return chunk
+
+        def close(self) -> None:
+            self._close()
+
+        def _close(self) -> None:
+            if self._closed:
+                return
+            self._closed = True
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    return int(response.status), response_headers, _Stream()
 
 
 def create_spiffe_bridge(

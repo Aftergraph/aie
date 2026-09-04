@@ -73,6 +73,35 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _stream(self, status: int, headers: Mapping[str, str], stream: Any) -> None:
+        # ponytail: relay an upstream SSE response as chunked transfer-encoding
+        # so the client sees frames as soon as the upstream produces them. This
+        # is the only path that satisfies SEP-2575 notifications/subscriptions
+        # /listen, which the reference mcp-everything-server keeps open
+        # indefinitely.
+        self.send_response(status)
+        for key, value in (headers or {}).items():
+            if key.lower() in {"transfer-encoding", "content-length"}:
+                continue
+            self.send_header(key, value)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        try:
+            for chunk in stream:
+                if not chunk:
+                    continue
+                self.wfile.write(f"{len(chunk):x}\r\n".encode("ascii") + chunk + b"\r\n")
+                self.wfile.flush()
+            self.wfile.write(b"0\r\n\r\n")
+            self.wfile.flush()
+        finally:
+            close = getattr(stream, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+
     def _json(self, status: int, payload: dict[str, Any]) -> None:
         raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         self._raw(status, raw, {"Content-Type": "application/json"})
@@ -116,7 +145,32 @@ class _GatewayHandler(BaseHTTPRequestHandler):
                 return
             self._json(200, {"events": self.server.gateway.store.list_evidence()})
             return
-        self._json(404, {"error": "not_found"})
+        if self.path not in {"/mcp", "/a2a"}:
+            self._json(404, {"error": "not_found"})
+            return
+        # ponytail: GET on /mcp and /a2a opens the server-initiated SSE stream
+        # (SEP-2575 notifications/subscriptions/listen and friends). Proxy to
+        # upstream and relay the response body as a chunked stream when the
+        # upstream advertises text/event-stream, so the client sees frames as
+        # the upstream produces them.
+        protocol = self.path[1:]
+        forwarder = self.server.forwarders.get(protocol)
+        if forwarder is None:
+            self._json(404, {"error": "no_forwarder_for_protocol"})
+            return
+        identity = self._transport_identity()
+        headers = {key: value for key, value in self.headers.items()}
+        body: dict[str, Any] = {}
+        try:
+            streamed = forwarder.forward_stream(method="GET", headers=headers, body=body)
+        except Exception:
+            self._json(502, {"error": "upstream_failure"})
+            return
+        # ponytail: GET requests are not admitted via the budget/decision
+        # path because the AIE gateway treats the standalone SSE stream as a
+        # transport-level relay, not an authority-evaluated action. The
+        # upstream itself is the authority for what notifications it emits.
+        self._stream(streamed.status, streamed.headers, streamed.stream)
 
     def _federated_revocation(self) -> None:
         identity = self._transport_identity()
