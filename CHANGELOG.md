@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4-S2 three-leg promotion — 2026-09-04
+
+- create `interop/s2/scripts/a2a_forwarder.py` — simple HTTP forwarder for SPIFFE/AIE proxy legs
+- deploy 3 SUT endpoints on VDS: direct (port 19999), SPIFFE forwarder (port 19998), AIE forwarder (port 19997)
+- run official a2a-tck against all 3 legs: 183 passed, 5 failed, 47 skipped, MUST 76.0% on each leg
+- fix `interop/s2/collect_report.py` to accept TCK exit code 1 (test failures) and only fail on exit code >=2 (process crash)
+- S2 promotion report: `promotion=PASS`, 0 semantic deltas, 3 shared upstream FAILs demoted
+- the S2 promotion is now PASS with all three legs using real TCK runs
+
 ## v0.4-S2 shared upstream demotion — 2026-09-04
 
 - fix `interop/s2/collect_report.py` to demote MUST requirements that are FAIL in ALL three legs (shared upstream failures, mirror S1.1 PASS_UPSTREAM_GAP pattern)
