@@ -316,7 +316,10 @@ def _request_stream(
         def __next__(self):
             import time as _time
             _t0 = _time.time()
-            chunk = response.read(8192)
+            # For long-lived SSE/chunked responses, read(amt) can wait for
+            # additional data before returning. read1() yields the first
+            # available buffered chunk so the bridge forwards frames promptly.
+            chunk = response.read1(8192)
             _t1 = _time.time()
             # ponytail: debug logging for SEP-2575 timing diagnostics.
             # Logs the first read from upstream and the delta from stream start.
