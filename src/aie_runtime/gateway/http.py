@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import ssl
+import sys
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Mapping
@@ -247,15 +249,44 @@ class _GatewayHandler(BaseHTTPRequestHandler):
             and isinstance(body, Mapping)
             and body.get("method") == "subscriptions/listen"
         ):
+            # ponytail: debug logging for SEP-2575 diagnostics.
+            _debug = os.environ.get("AIE_GATEWAY_DEBUG") == "1"
+            _debug_count = getattr(self.server, "_debug_listen_count", 0)
+            if _debug and _debug_count < 3:
+                self.server._debug_listen_count = _debug_count + 1
+                print(
+                    f"[gateway] POST /mcp subscriptions/listen forwarding via forward_stream",
+                    file=sys.stderr,
+                    flush=True,
+                )
             forwarder = self.server.forwarders.get("mcp")
             if forwarder is None:
+                if _debug:
+                    print(
+                        "[gateway] POST /mcp subscriptions/listen no_forwarder_for_protocol",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 self._json(404, {"error": "no_forwarder_for_protocol"})
                 return
             try:
                 streamed = forwarder.forward_stream(method="POST", headers={key: value for key, value in self.headers.items()}, body=dict(body))
-            except Exception:
+            except Exception as exc:
+                if _debug:
+                    print(
+                        f"[gateway] POST /mcp subscriptions/listen forward_stream exc={type(exc).__name__}: {exc}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 self._json(502, {"error": "upstream_failure"})
                 return
+            if _debug:
+                _ct = streamed.headers.get("content-type", "?")
+                print(
+                    f"[gateway] POST /mcp subscriptions/listen upstream_status={streamed.status} content_type={_ct}",
+                    file=sys.stderr,
+                    flush=True,
+                )
             self._stream(streamed.status, streamed.headers, streamed.stream)
             return
 

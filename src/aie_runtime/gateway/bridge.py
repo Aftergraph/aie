@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import http.client
+import os
 import ssl
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
@@ -141,6 +143,19 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         headers = _sanitize_headers({k: v for k, v in self.headers.items()})
         url = self.server.upstream_base_url + self.path
         context = self.server.outbound_context()
+        # ponytail: debug logging for SEP-2575 diagnostics. Gated on
+        # AIE_BRIDGE_DEBUG and rate-limited to avoid log flooding. Only
+        # logs POST /mcp with subscriptions/listen method.
+        _debug = os.environ.get("AIE_BRIDGE_DEBUG") == "1"
+        _debug_count = getattr(self.server, "_debug_post_count", 0)
+        if _debug and self.command == "POST" and b"subscriptions/listen" in body and _debug_count < 3:
+            self.server._debug_post_count = _debug_count + 1
+            _is_listen = b'"method":"subscriptions/listen"' in body or b'"method": "subscriptions/listen"' in body
+            print(
+                f"[bridge] POST {self.path} body_len={len(body)} is_listen={_is_listen}",
+                file=sys.stderr,
+                flush=True,
+            )
         try:
             if self.server.expected_upstream_spiffe_id is not None:
                 if context is None:
@@ -158,9 +173,23 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 status, response_headers, stream = _request_stream(
                     self.command, url, body, headers, timeout=self.server.timeout, ssl_context=context
                 )
-        except Exception:
+        except Exception as exc:
+            if _debug and self.command == "POST" and b"subscriptions/listen" in body:
+                print(
+                    f"[bridge] POST {self.path} upstream_exc={type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                    flush=True,
+                )
             self._send_raw(502, b'{"error":"bridge_upstream_failure"}', {"Content-Type": "application/json"})
             return
+        if _debug and self.command == "POST" and b"subscriptions/listen" in body:
+            _ct = response_headers.get("content-type", "?")
+            print(
+                f"[bridge] POST {self.path} upstream_status={status} content_type={_ct} "
+                f"is_event_stream={_is_event_stream(response_headers)}",
+                file=sys.stderr,
+                flush=True,
+            )
         if _is_event_stream(response_headers):
             # ponytail: relay the SSE stream chunk-by-chunk so SEP-2575
             # notifications/subscriptions/listen and any text/event-stream
