@@ -82,6 +82,7 @@ class FunctionalRuntime:
             if not allowed:
                 raise AIEError("AIE-POLICY-001")
             result = {"status": "admitted", "error_code": None}
+            self.state.setdefault("admissions", {})[action_id] = request
             self._event("action.admitted", actionId=action_id)
             self._event("action.committed", actionId=action_id)
             outcomes[action_id] = result
@@ -147,6 +148,49 @@ class FunctionalRuntime:
             for child in self.state.get("leases", {}).values():
                 if child.get("parent_lease_id") == current:
                     pending.append(child["id"])
+
+    def revalidate(self, action_id: str) -> None:
+        """Execution-time revalidation (TH-12 fix).
+
+        The executor MUST call this immediately before running an admitted action.
+        Closes the window between admission and execution: revocation, lease expiry,
+        and capability/resource drift fail closed here. AIE-AUTH-004 marks
+        execution-time rejection.
+        """
+        outcomes = self.state.get("outcomes", {})
+        request = self.state.get("admissions", {}).get(action_id)
+        if request is None:
+            raise AIEError("AIE-AUTH-004")
+
+        # Re-resolve against live state: _raise on drift/expiry/revocation.
+        principals = self.state.get("principals", {})
+        missions = self.state.get("missions", {})
+        leases = self.state.get("leases", {})
+        principal = principals.get(request["principal_id"])
+        mission = missions.get(request["mission_id"])
+        lease = leases.get(request["lease_id"])
+        if principal is None or mission is None or lease is None:
+            raise AIEError("AIE-AUTH-001")
+        if (lease.get("principal_id") != request["principal_id"] or
+                lease.get("mission_id") != request["mission_id"]):
+            raise AIEError("AIE-AUTH-001")
+        expires = datetime.fromisoformat(lease["expires_at"])
+        if expires <= self.now():
+            raise AIEError("AIE-AUTH-002")
+        if lease.get("revoked", False):
+            raise AIEError("AIE-AUTH-003")
+        if not capability_set_allows(set(lease.get("capabilities", [])), request["capability"]):
+            raise AIEError("AIE-AUTH-004")
+        if not any(request["resource"].startswith(p) for p in lease.get("resource_prefixes", [])):
+            raise AIEError("AIE-AUTH-004")
+
+        # Budget floor: reserved cost must still be coverable at execution time.
+        cost = float(request.get("budget_cost", 0))
+        remaining = float(lease.get("budget_remaining", 0))
+        if cost > remaining:
+            raise AIEError("AIE-BUDGET-001")
+
+        self._event("action.revalidated", actionId=action_id, leaseId=request["lease_id"])
 
     def authorize_topology_mutation(self, *, actor: str, mutation: str, target: str) -> bool:
         try:
