@@ -252,3 +252,104 @@ def test_gateway_get_mcp_streams_text_event_stream_as_chunked_and_terminates(tmp
     assert b"Transfer-Encoding: chunked" in head, f"expected chunked header, got head: {head!r}"
     assert b"event: message" in body, f"expected at least one SSE frame in body, got: {body!r}"
     assert body.endswith(b"0\r\n\r\n"), f"body must end with chunked terminator, got: {body!r}"
+
+
+def test_gateway_post_mcp_subscriptions_listen_streams_response_as_chunked(tmp_path):
+    """POST /mcp with `subscriptions/listen` is the SEP-2575 stream path.
+
+    The request is a JSON-RPC method call whose response IS the SSE stream
+    (the ack is the first frame). The gateway must relay the upstream's
+    chunked-encoded stream instead of buffering it into a single
+    Content-Length body. Regression: the previous `do_POST` path called
+    `forward()` which buffers, so the conformance client saw a single
+    buffered response and reported "Failed to open or receive frames
+    from the subscriptions/listen stream endpoint".
+    """
+    from aie_runtime.gateway.forwarding import UpstreamStreamResponse
+
+    @dataclass
+    class StubStream:
+        chunks: list[bytes]
+        index: int = 0
+
+        def __iter__(self):
+            return self
+
+        def __next__(self) -> bytes:
+            if self.index >= len(self.chunks):
+                import time
+                time.sleep(60)
+                raise AssertionError("stub stream should not be drained past the terminator")
+            value = self.chunks[self.index]
+            self.index += 1
+            return value
+
+        def close(self) -> None:
+            pass
+
+    class StubForwarder:
+        def __init__(self):
+            self.received_method = None
+            self.received_body = None
+
+        def forward(self, *, protocol, headers, body):
+            raise AssertionError("forward (buffered) should not be called for subscriptions/listen")
+
+        def forward_stream(self, *, method, headers, body):
+            self.received_method = method
+            self.received_body = body
+            frame_one = b"event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/subscriptions/acknowledged\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/subscriptionId\":\"listen-1\"}}}\n\n"
+            frame_two = b"event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/tools/list_changed\"}\n\n"
+            return UpstreamStreamResponse(
+                status=200,
+                headers={"Content-Type": "text/event-stream"},
+                stream=StubStream([frame_one, frame_two, b""]),
+            )
+
+    server, _ = build_server(tmp_path)
+    stub = StubForwarder()
+    server.forwarders["mcp"] = stub
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    raw = b""
+    sock = None
+    try:
+        import socket
+        import json as _json
+        sock = socket.create_connection(("127.0.0.1", server.server_port), timeout=5)
+        request_body = _json.dumps({
+            "jsonrpc": "2.0",
+            "id": "listen-1",
+            "method": "subscriptions/listen",
+            "params": {"notifications": {"toolsListChanged": True}},
+        }).encode("utf-8")
+        request = (
+            b"POST /mcp HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: " + str(len(request_body)).encode() + b"\r\n"
+            b"X-AIE-Verified-Spiffe-ID: spiffe://example.org/agent/refund\r\n"
+            b"X-AIE-Identity-Verified: true\r\n"
+            b"Connection: close\r\n\r\n"
+        ) + request_body
+        sock.sendall(request)
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            raw += chunk
+    finally:
+        if sock is not None:
+            sock.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    head, _, body = raw.partition(b"\r\n\r\n")
+    assert b"200 OK" in head, f"expected 200 OK, got head: {head!r}"
+    assert b"Transfer-Encoding: chunked" in head, f"expected chunked response, got head: {head!r}"
+    assert b"event: message" in body, f"expected SSE frames in body, got: {body!r}"
+    assert body.endswith(b"0\r\n\r\n"), f"body must end with chunked terminator, got: {body!r}"
+    # The forward_stream path must have been called (not the buffered forward).
+    assert stub.received_method == "POST"
+    assert stub.received_body.get("method") == "subscriptions/listen"

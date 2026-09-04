@@ -233,6 +233,32 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         except ValueError:
             self._json(400, {"error": "invalid_json"})
             return
+        # ponytail: SEP-2575 `notifications/subscriptions/listen` is a
+        # POST whose response IS the SSE stream (the ack is the first
+        # frame). The default `gateway.forward()` path buffers the
+        # upstream response into a single Content-Length body, which
+        # breaks the conformance test. The listen method is a
+        # transport-level relay: the upstream is the authority for what
+        # notifications it emits, so we bypass the admission path and
+        # stream directly via `forward_stream`. Same posture as the GET
+        # /mcp handler above.
+        if (
+            self.path == "/mcp"
+            and isinstance(body, Mapping)
+            and body.get("method") == "subscriptions/listen"
+        ):
+            forwarder = self.server.forwarders.get("mcp")
+            if forwarder is None:
+                self._json(404, {"error": "no_forwarder_for_protocol"})
+                return
+            try:
+                streamed = forwarder.forward_stream(method="POST", headers={key: value for key, value in self.headers.items()}, body=dict(body))
+            except Exception:
+                self._json(502, {"error": "upstream_failure"})
+                return
+            self._stream(streamed.status, streamed.headers, streamed.stream)
+            return
+
         protocol = self.path[1:]
         headers = {key: value for key, value in self.headers.items()}
         identity = self._transport_identity()
