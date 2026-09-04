@@ -120,15 +120,19 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             return
         for chunk in stream:
             if not chunk:
-                continue
+                # ponytail: an empty chunk is the upstream's signal that
+                # the chunked stream is exhausted (the chunked terminator
+                # already returned b"" from read). Break instead of
+                # continue, otherwise the next read blocks forever waiting
+                # for more bytes that never come and the bridge hangs
+                # even after the SSE frame was delivered.
+                break
             self.wfile.write(f"{len(chunk):x}\r\n".encode("ascii") + chunk + b"\r\n")
             self.wfile.flush()
         self.wfile.write(b"0\r\n\r\n")
         self.wfile.flush()
 
     def _proxy(self) -> None:
-        import sys as _sys
-        print(f"[bridge] {self.command} {self.path} from {self.client_address[0]}", file=_sys.stderr, flush=True)
         if not self._client_allowed():
             self._send_raw(403, b'{"error":"spiffe_identity_denied"}', {"Content-Type": "application/json"})
             return
@@ -161,7 +165,6 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             # ponytail: relay the SSE stream chunk-by-chunk so SEP-2575
             # notifications/subscriptions/listen and any text/event-stream
             # response are not buffered into a single Content-Length frame.
-            print(f"[bridge] SSE relay: status={status} headers={dict(response_headers)}", file=_sys.stderr, flush=True)
             self._send_stream(status, response_headers, stream)
             return
         # Non-streaming response: drain into memory and send buffered. This

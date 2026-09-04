@@ -3,6 +3,7 @@ from __future__ import annotations
 import http.client
 import json
 import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -146,6 +147,45 @@ class _SseUpstream(BaseHTTPRequestHandler):
         self.wfile.write(b"0\r\n\r\n")
         self.wfile.flush()
 
+    def do_POST(self):  # noqa: N802
+        # ponytail: SEP-2575 conformance test pattern. The upstream emits
+        # the acknowledged frame as the first SSE frame, then KEEPS the
+        # connection open waiting for the client to disconnect. The bridge
+        # must relay the frame to the downstream client without hanging
+        # on the upstream's open connection.
+        length = int(self.headers.get("Content-Length", "0") or 0)
+        _body = self.rfile.read(length) if length else b""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        # Mimic uvicorn/ASGI: use Transfer-Encoding: chunked so the
+        # bridge's HTTPResponse can decode the body as it arrives. Without
+        # this, BaseHTTPRequestHandler leaves the body connection-close
+        # delimited and the bridge's read() blocks forever waiting for
+        # the upstream to close.
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        ack = (
+            b"event: message\n"
+            b'data: {"jsonrpc":"2.0","method":"notifications/subscriptions/acknowledged",'
+            b'"params":{"_meta":{"io.modelcontextprotocol/subscriptionId":"sub-1"}}}\n\n'
+        )
+        chunk = f"{len(ack):x}\r\n".encode("ascii") + ack + b"\r\n"
+        self.wfile.write(chunk)
+        self.wfile.flush()
+        # Close the upstream chunked stream so the bridge's HTTPResponse
+        # decoder sees the terminator and returns b"" on the next read.
+        # Then keep the connection open (the real MCP SDK v2.0.0 does
+        # this) so a buggy bridge's `for chunk in stream` loop hits
+        # the empty-chunk path and either breaks (correct) or hangs
+        # (the previous `continue` bug).
+        self.wfile.write(b"0\r\n\r\n")
+        self.wfile.flush()
+        try:
+            self.rfile.read(1)
+        except Exception:
+            pass
+
 
 def test_bridge_relays_sse_responses_as_chunked_transfer_encoding(tmp_path):
     # ponytail: bridge with no SPIFFE outbound verification streams a
@@ -182,6 +222,69 @@ def test_bridge_relays_sse_responses_as_chunked_transfer_encoding(tmp_path):
         assert b"event: tick\ndata: 1\n\n" in body
         assert b"event: end\ndata: bye\n\n" in body
         assert body.endswith(b"0\r\n\r\n")
+    finally:
+        bridge.shutdown(); bridge.server_close()
+        upstream.shutdown(); upstream.server_close()
+
+
+def test_bridge_relays_sep2575_post_sse_acknowledged_frame(tmp_path):
+    # ponytail: SEP-2575 conformance regression. The upstream MCP SDK
+    # v2.0.0 responds to a POST subscriptions/listen with a single
+    # `notifications/subscriptions/acknowledged` SSE frame and then KEEPS
+    # the connection open. The bridge must deliver the frame to the
+    # downstream client without hanging on the upstream's open socket.
+    # Previously the bridge's for loop did `if not chunk: continue` and
+    # the SSE frame was lost — the loop blocked on the next read forever.
+    import socket
+    upstream = ThreadingHTTPServer(("127.0.0.1", 0), _SseUpstream)
+    _serve(upstream)
+    bridge = create_spiffe_bridge(
+        upstream_base_url=f"http://127.0.0.1:{upstream.server_port}",
+        host="127.0.0.1",
+        port=0,
+    )
+    _serve(bridge)
+    try:
+        body = (
+            b'{"jsonrpc":"2.0","id":1,"method":"subscriptions/listen",'
+            b'"params":{"_meta":{"io.modelcontextprotocol/protocolVersion":'
+            b'"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"t",'
+            b'"version":"1"},"io.modelcontextprotocol/clientCapabilities":{}},'
+            b'"notifications":{"toolsListChanged":true}}}'
+        )
+        # Use a raw socket so the downstream reads but does not close
+        # early; a broken bridge's `for chunk in stream: continue` loop
+        # would block on the next read and the downstream's `readline`
+        # would time out. The bug is observable as: the first SSE frame
+        # never reaches the downstream.
+        s = socket.create_connection(("127.0.0.1", bridge.server_port), timeout=3)
+        s.sendall(
+            b"POST /mcp HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Accept: application/json, text/event-stream\r\n"
+            b"Content-Length: " + str(len(body)).encode() + b"\r\n"
+            b"\r\n" + body
+        )
+        s.settimeout(2.0)
+        raw = b""
+        # Read until we see \n\n (end of first SSE frame) or timeout.
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            try:
+                chunk = s.recv(4096)
+            except socket.timeout:
+                break
+            if not chunk:
+                break
+            raw += chunk
+            if b"\n\n" in raw:
+                break
+        s.close()
+        # The first SSE frame must reach the downstream client even
+        # though the upstream keeps the connection open after writing it.
+        assert b"notifications/subscriptions/acknowledged" in raw, raw
+        assert b"subscriptionId" in raw, raw
     finally:
         bridge.shutdown(); bridge.server_close()
         upstream.shutdown(); upstream.server_close()

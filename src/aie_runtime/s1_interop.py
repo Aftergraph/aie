@@ -132,7 +132,11 @@ def build_report(
         "mcp_revision": MCP_REVISION,
         "live_spire": live_spire,
         "local_gates": dict(local_gates),
-        "legs": {name: dict(value) for name, value in legs.items()},
+        # ponytail: return the demoted legs (PASS_UPSTREAM_GAP) so the
+        # report shape matches the promotion decision. Previously this
+        # returned the raw `legs` and left leg.status = FAIL even when
+        # the demotion logic had rewritten the internal copy.
+        "legs": {name: dict(value) for name, value in promoted_legs.items()},
         "semantic_delta": delta,
         "promotion": promotion,
     }
