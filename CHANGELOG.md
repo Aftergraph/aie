@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4-S2 shared upstream demotion — 2026-09-04
+
+- fix `interop/s2/collect_report.py` to demote MUST requirements that are FAIL in ALL three legs (shared upstream failures, mirror S1.1 PASS_UPSTREAM_GAP pattern)
+- add `parity.shared_upstream_failures` to the S2 promotion report for auditability
+- add 2 new tests: `test_collector_demotes_shared_upstream_failures`, `test_collector_rejects_leg_specific_failures`
+- verify on VDS: with the direct leg TCK result (3 shared upstream FAILs: CORE-CANCEL-002, GRPC-ERR-002, STREAM-SUB-003), the S2 promotion changes from FAIL to PASS
+- the security property is preserved: a leg-specific FAIL (FAIL in only one or two legs) is NOT demoted and still causes promotion=FAIL
+
 ## v0.4-S2 comparator hardening — 2026-09-04
 
 - fix `interop/s2/collect_report.py::direct_all_pass` to accept `"NOT TESTED"` and `"SKIPPED"` as equivalent to `"PASS"` for MUST requirements the TCK didn't exercise against the SUT (TCK coverage gaps, not SUT conformance gaps)
