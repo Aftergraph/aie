@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4-S2 comparator fix — 2026-09-04
+
+- fix `interop/s2/collect_report.py::validate_s1_attestation` to accept `"PASS_UPSTREAM_GAP"` as a valid leg status (the real S1 promotion correctly demotes legs whose failures are all upstream-shared)
+- fix `validate_s1_attestation` to use `checks_total >= len(check_ids)` instead of strict equality (`checks_total` counts every check execution including parameterized variants, while `check_ids` is the set of unique check identifiers)
+- add 4 new tests: `test_collector_accepts_pass_upstream_gap_leg_status`, `test_collector_rejects_fail_leg_status`, `test_collector_accepts_checks_total_greater_than_check_ids`, `test_collector_rejects_checks_total_less_than_check_ids`
+- verify: the canonical S1 promotion report from run 33831755655 now passes S2 validation with 0 errors
+- this unblocks the S1 -> S2 promotion path
+
 ## v0.4-S1.1 post-promotion cleanup — 2026-09-04
 
 - remove debug timing logs from `bridge.py::_proxy`, `http.py::do_POST`, and `spiffe_http.py::request_stream_with_peer_identity` now that the S1.1 promotion is stable
