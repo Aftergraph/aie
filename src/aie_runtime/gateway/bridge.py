@@ -127,6 +127,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def _proxy(self) -> None:
+        import sys as _sys
+        print(f"[bridge] {self.command} {self.path} from {self.client_address[0]}", file=_sys.stderr, flush=True)
         if not self._client_allowed():
             self._send_raw(403, b'{"error":"spiffe_identity_denied"}', {"Content-Type": "application/json"})
             return
@@ -159,6 +161,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             # ponytail: relay the SSE stream chunk-by-chunk so SEP-2575
             # notifications/subscriptions/listen and any text/event-stream
             # response are not buffered into a single Content-Length frame.
+            print(f"[bridge] SSE relay: status={status} headers={dict(response_headers)}", file=_sys.stderr, flush=True)
             self._send_stream(status, response_headers, stream)
             return
         # Non-streaming response: drain into memory and send buffered. This
