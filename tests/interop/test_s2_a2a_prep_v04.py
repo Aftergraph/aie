@@ -250,3 +250,59 @@ def test_collector_fails_when_any_official_tck_process_exits_nonzero(tmp_path):
     assert result.returncode != 0
     assert output['promotion'] == 'FAIL'
     assert any('tck-exit-code:aie:2' in item for item in output['parity']['semantic_delta'])
+
+
+def test_collector_accepts_pass_upstream_gap_leg_status(tmp_path):
+    # ponytail: the real S1 promotion demotes legs whose failures are all
+    # upstream-shared to "PASS_UPSTREAM_GAP". The S2 comparator must accept
+    # this as a valid leg status when the overall promotion is PASS.
+    s1 = _s1_attestation(promotion='PASS')
+    for name in ('direct', 'bridge', 'aie'):
+        s1['legs'][name]['status'] = 'PASS_UPSTREAM_GAP'
+    result, output = _run(tmp_path, s1_report=s1)
+    assert result.returncode == 0
+    assert output['promotion'] == 'PASS'
+    assert output['s1_dependency']['satisfied'] is True
+    assert not any(
+        'leg_status' in err for err in output['s1_dependency']['validation_errors']
+    )
+
+
+def test_collector_rejects_fail_leg_status(tmp_path):
+    # ponytail: a bare "FAIL" leg status must still be rejected, even when
+    # the overall promotion is PASS. Only "PASS" and "PASS_UPSTREAM_GAP" are
+    # acceptable.
+    s1 = _s1_attestation(promotion='PASS')
+    s1['legs']['bridge']['status'] = 'FAIL'
+    result, output = _run(tmp_path, s1_report=s1)
+    assert result.returncode == 0
+    assert output['promotion'] == 'BLOCKED_BY_S1'
+    assert 'leg_status:bridge' in output['s1_dependency']['validation_errors']
+
+
+def test_collector_accepts_checks_total_greater_than_check_ids(tmp_path):
+    # ponytail: the real S1 report has checks_total=195 and check_ids=134.
+    # checks_total counts every check execution (including parameterized
+    # variants), while check_ids is the set of unique check identifiers.
+    # The correct invariant is checks_total >= len(check_ids).
+    s1 = _s1_attestation(promotion='PASS')
+    for name in ('direct', 'bridge', 'aie'):
+        s1['legs'][name]['checks_total'] = 195
+        # Keep check_ids at 2 (from _s1_attestation) — 195 > 2 should pass.
+    result, output = _run(tmp_path, s1_report=s1)
+    assert result.returncode == 0
+    assert output['promotion'] == 'PASS'
+    assert not any(
+        'leg_checks_total' in err for err in output['s1_dependency']['validation_errors']
+    )
+
+
+def test_collector_rejects_checks_total_less_than_check_ids(tmp_path):
+    # ponytail: checks_total must be >= len(check_ids). If it's less, the
+    # report is internally inconsistent and must be rejected.
+    s1 = _s1_attestation(promotion='PASS')
+    s1['legs']['direct']['checks_total'] = 1  # less than 2 unique check_ids
+    result, output = _run(tmp_path, s1_report=s1)
+    assert result.returncode == 0
+    assert output['promotion'] == 'BLOCKED_BY_S1'
+    assert 'leg_checks_total:direct' in output['s1_dependency']['validation_errors']
