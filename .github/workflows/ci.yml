@@ -1,9 +1,13 @@
 name: CI
 
+# Hosted Actions are billing-locked on this account: every job dies with
+# startup_failure before any step runs, so a push-triggered hosted workflow
+# only produces red X's on every commit. Verification now runs through the
+# works control plane (see works.yml at repo root -> commit status
+# `works/aie`) and the self-hosted aie-interop runner workflows. This
+# workflow stays as the rollback path, manual-only.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
