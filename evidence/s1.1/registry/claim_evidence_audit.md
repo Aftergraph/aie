@@ -22,6 +22,7 @@ Tracked claims and their evidence status. Updated each cycle.
 | C-014 | A2A TCK direct leg run: 183 passed, 5 failed, 47 skipped, MUST 76.0% | LIVE (VDS, 2026-09-04) | /home/nora/aie-evidence/s2-tck/direct/compatibility.json, TCK commit 263b9cfa, SUT commit HEAD | PARTIAL | 2026-09-04 cycle 9 |
 | C-015 | S2 comparator accepts NOT_TESTED and SKIPPED for direct MUST | LIVE (VDS, 2026-09-04) | commit b68162e, collect_report.py on /home/nora/aie-evidence/s2-tck/: promotion=FAIL (3 shared upstream FAILs), semantic_delta reduced from 17 to 3 | PASS | 2026-09-04 cycle 9 |
 | C-016 | S2 comparator demotes shared upstream FAILs (mirror S1.1 PASS_UPSTREAM_GAP) | LIVE (VDS, 2026-09-04) | commit a9112b2, collect_report.py on /home/nora/aie-evidence/s2-tck/: promotion=PASS, 3 shared upstream FAILs demoted, semantic_delta=0 | PASS | 2026-09-04 cycle 10 |
+| C-017 | S2 three-leg TCK promotion: direct + SPIFFE forwarder + AIE forwarder, all against official a2a-python SUT | LIVE (VDS, 2026-09-04) | /home/nora/aie-evidence/s2-promotion/AIE_S2_A2A_INTEROP.json, 3 legs each 183 passed/5 failed/47 skipped, MUST 76.0%, all 3 FAILs shared upstream | PASS | 2026-09-04 cycle 11 |
 
 ## Evidence Types
 

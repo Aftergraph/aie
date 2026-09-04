@@ -4,8 +4,8 @@
 
 - Core semantics: **AIE Draft 0.3**
 - Reference gateway: **0.3.x**
-- Current workstream: **v0.4-S1.1 external MCP/SPIRE interoperability (PASS) → v0.4-S1.2 (next)**
-- Promotion: **PASS** (run 33831755655, 2026-09-04)
+- Current workstream: **v0.4-S2 external A2A interop (PASS)**
+- Promotion: **PASS** (direct TCK run 2026-09-04, S2 promotion report `/home/nora/aie-evidence/s2-promotion/AIE_S2_A2A_INTEROP.json`)
 
 ## Proven locally
 

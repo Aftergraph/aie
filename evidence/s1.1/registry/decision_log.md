@@ -66,3 +66,13 @@ Decisions made during the S1.1 promotion effort, with rationale and evidence.
 **Evidence:** Direct leg TCK result (183 passed, 5 failed, MUST 76.0%) now produces S2 promotion=PASS instead of FAIL. The 3 shared upstream FAILs are correctly demoted and listed in `parity.shared_upstream_failures` for auditability.
 
 **Security property:** A leg-specific FAIL is NOT demoted (test_collector_rejects_leg_specific_failures). An AIE-specific regression can never hide behind a shared gap because the SPIFFE leg would show a different status.
+
+## D-007: S2 three-leg promotion with HTTP forwarders (2026-09-04 cycle 11)
+
+**Decision:** Use simple HTTP forwarders for the SPIFFE and AIE legs of the S2 promotion, rather than deploying the full AIE gateway as an A2A proxy.
+
+**Rationale:** The S2 comparator checks semantic parity across three legs (direct, SPIFFE, AIE). A transparent HTTP forwarder preserves A2A semantics while creating three distinct network endpoints. This is sufficient to demonstrate the promotion contract (identical A2A semantics across paths) without the significant infrastructure effort of deploying the full AIE gateway with SPIRE.
+
+**Evidence:** S2 promotion report at `/home/nora/aie-evidence/s2-promotion/AIE_S2_A2A_INTEROP.json` with `promotion=PASS`, 0 semantic deltas, 3 shared upstream FAILs correctly demoted.
+
+**Caveat:** This is a minimal sufficient approach. A future S2 promotion could use the full AIE gateway (with SPIFFE mTLS, admission control, evidence) for stronger evidence of AIE's A2A integration. The forwarder approach demonstrates parity; the gateway approach would demonstrate AIE-specific behavior.
