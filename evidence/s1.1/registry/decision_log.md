@@ -36,10 +36,23 @@ Decisions made during the S1.1 promotion effort, with rationale and evidence.
 
 **Evidence:** run 33829373989, lab-logs now show real output. All 3 relay layers confirmed to stream correctly. The root cause is NOT in the relay chain — it's in the end-to-end timing or a buffering layer not yet instrumented.
 
-## D-005: Root cause of SEP-2575 aie/bridge leg failure (2026-09-04 cycle 4, HYPOTHESIS)
+## D-005: Root cause of SEP-2575 aie/bridge leg failure (2026-09-04 cycle 4-5, RESOLVED)
 
-**Decision (pending verification):** The most likely root cause is that the AIE gateway's `http.client`-based upstream connection (`request_stream_with_peer_identity` in `spiffe_http.py`) buffers the response before the first chunk reaches the client-bridge. The conformance test's 800ms timeout is too short for the 3-hop relay chain when buffering is involved.
+**Root cause:** `http.client.HTTPResponse.read(amt)` can wait for and coalesce multiple HTTP chunks on long-lived SSE responses. On the aie leg (3-hop relay chain), this caused the first SSE frame to be delayed past the conformance test's 800ms timeout. The direct leg (2-hop) worked because the delay was within tolerance.
 
-**Rationale:** The direct leg (2 hops) works. The aie leg (3 hops) fails. The relay chain is confirmed to stream correctly. The only difference is the extra hop through the AIE gateway. The `http.client.HTTPSConnection.response.read(8192)` call should return chunks as they arrive, but there may be a buffering issue in the `http.client` library or in the AIE gateway's response handling.
+**Fix (applied by Jonas in commits dabd11c, 2430a42, f7840fc):** Change `response.read(8192)` to `response.read1(8192)` in all three relay paths:
+- `spiffe_http.py::request_stream_with_peer_identity._Stream.__next__` (SPIFFE TLS path)
+- `bridge.py::_request_stream._Stream.__next__` (non-SPIFFE TLS path)
+- `forwarding.py::HTTPUpstreamForwarder.forward_stream._Stream.__next__` (urllib path)
 
-**Next step:** Add more detailed debug logging to the client-bridge's `_request_stream` and `_send_stream` to measure the time between reading the first chunk from the AIE gateway and writing the first chunk to the conformance client.
+`read1()` returns the first available buffered bytes without waiting to fill a larger read, so event frames cross the relay promptly.
+
+**Evidence:**
+- run 33831755655, `promotion: PASS`
+- All 3 legs correctly demoted to `PASS_UPSTREAM_GAP` (195 checks each)
+- All 4 external rotation gates PASS
+- `live_spire: PASS`
+- 173/173 local tests pass
+- Regression tests: `test_plain_bridge_stream_yields_first_available_http_chunk`, `test_plain_forward_stream_yields_first_available_http_chunk`
+
+**My contribution:** Identified the hypothesis (http.client buffering) in cycle 4 via debug logging, but Jonas implemented and tested the fix first. I followed up by applying the same fix to `forwarding.py` (which Jonas then also applied independently).

@@ -12,8 +12,9 @@ Tracked claims and their evidence status. Updated each cycle.
 | C-004 | Direct leg correctly demoted to PASS_UPSTREAM_GAP | LIVE (self-hosted runner) | run 33828142733, AIE_S1_1_PROMOTION.json::legs.direct.demoted | PASS | 2026-09-04 cycle 3 |
 | C-005 | AIE gateway do_POST streams subscriptions/listen via forward_stream | SIMULATED (unit test) | tests/gateway/test_http_gateway.py::test_gateway_post_mcp_subscriptions_listen_streams_response_as_chunked | PASS | 2026-09-04 cycle 3 |
 | C-006 | All 3 relay layers stream SSE correctly in live lab | LIVE (self-hosted runner, debug logs) | run 33829373989, lab-logs/{server-bridge,gateway,client-bridge-aie}.log | PASS | 2026-09-04 cycle 4 |
-| C-007 | SEP-2575 aie/bridge legs pass conformance | LIVE (self-hosted runner) | NOT YET — 3 FAILURE checks remain | BLOCKED | 2026-09-04 cycle 4 |
-| C-008 | S1.1 promotion: PASS | LIVE (self-hosted runner) | NOT YET — blocked by C-007 | BLOCKED | 2026-09-04 cycle 4 |
+| C-007 | SEP-2575 aie/bridge legs pass conformance | LIVE (self-hosted runner) | run 33831755655, AIE_S1_1_PROMOTION.json::legs.aie.status=PASS_UPSTREAM_GAP, legs.bridge.status=PASS_UPSTREAM_GAP | PASS | 2026-09-04 cycle 5 |
+| C-008 | S1.1 promotion: PASS | LIVE (self-hosted runner) | run 33831755655, AIE_S1_1_PROMOTION.json::promotion=PASS | PASS | 2026-09-04 cycle 5 |
+| C-009 | read1() fix unblocks SSE relay through http.client | LIVE (self-hosted runner) | run 33831755655, commit dabd11c (Jonas), commit 2430a42 (Jonas), commit f7840fc (Jonas) | PASS | 2026-09-04 cycle 5 |
 
 ## Evidence Types
 

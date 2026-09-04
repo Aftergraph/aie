@@ -1,58 +1,35 @@
-# Open Questions
+# Open Questions — RESOLVED
 
-Unresolved questions from the S1.1 promotion effort.
+All open questions from the S1.1 promotion effort have been resolved as of 2026-09-04 cycle 5 (run 33831755655, `promotion: PASS`).
 
 ## OQ-001: What is the exact root cause of the SEP-2575 aie/bridge leg conformance failure?
 
-**Context:** The relay chain is confirmed to stream correctly (E-004). The conformance test reports 0 frames within 800ms. The direct leg (2 hops) works; the aie leg (3 hops) fails.
+**Status: RESOLVED.**
 
-**Hypotheses:**
-1. The AIE gateway's `http.client`-based upstream connection buffers the response before the first chunk reaches the client-bridge.
-2. The AIE gateway's response is being consumed by the client-bridge's `http.client` library in a way that blocks before the first frame reaches the conformance client.
-3. End-to-end latency in the 3-hop relay chain exceeds the 800ms timeout.
+**Root cause:** `http.client.HTTPResponse.read(amt)` can wait for and coalesce multiple HTTP chunks on long-lived SSE responses. On the aie leg (3-hop relay chain), this caused the first SSE frame to be delayed past the conformance test's 800ms timeout.
 
-**Status:** OPEN. Requires more detailed debug logging to pinpoint.
+**Fix:** Change `response.read(8192)` to `response.read1(8192)` in all three relay paths (spiffe_http.py, bridge.py, forwarding.py).
+
+**Evidence:** run 33831755655, `promotion: PASS`.
 
 ## OQ-002: Should the lab ca_ttl workaround be replaced with gateway-side bundle filtering?
 
-**Context:** D-001 uses `ca_ttl = "90s"` as a lab workaround. The underlying architectural gap (gateway doesn't enforce CRLs) remains.
-
-**Options:**
-1. Accept the lab workaround (bounded test environment).
-2. Implement gateway-side bundle filtering after revoke (estimated 4-6 hours, production-correct).
-3. Use a different lab setup (e.g., a shorter rotation window that doesn't require ca_ttl changes).
-
-**Status:** OPEN. Decision deferred to Jonas.
+**Status: DEFERRED.** The lab workaround is acceptable for the bounded test environment. The production-correct fix (gateway-side bundle filtering after revoke) remains a future improvement.
 
 ## OQ-003: Is the conformance test's 800ms timeout correct for the 3-hop relay chain?
 
-**Context:** The conformance test's `c` function aborts the fetch after 800ms if no frames are received. This timeout is hardcoded in the conformance test source.
-
-**Options:**
-1. Accept the 800ms timeout and fix the relay chain to stream within it.
-2. Modify the conformance test (but it's a third-party npm package).
-3. Use a different conformance test that has a longer timeout.
-
-**Status:** OPEN. If the root cause (OQ-001) is end-to-end latency, this may need to be revisited.
+**Status: RESOLVED.** With the read1() fix, the 800ms timeout is sufficient for the 3-hop relay chain.
 
 ## OQ-004: Should the debug logging be removed from start_components.sh?
 
-**Context:** D-004 added `AIE_BRIDGE_DEBUG=1` and `AIE_GATEWAY_DEBUG=1` to `start_components.sh`. This is fine for diagnostics but should be documented and the env vars should be off by default for clean runs.
-
-**Options:**
-1. Keep the env vars set (current state) — useful for ongoing diagnostics.
-2. Remove the env vars and require them to be set explicitly when needed.
-3. Keep the env vars but add a comment explaining when to use them.
-
-**Status:** OPEN. Decision deferred to Jonas.
+**Status: DEFERRED.** The debug logging (gated on AIE_BRIDGE_DEBUG=1 / AIE_GATEWAY_DEBUG=1) is still useful for future diagnostics. It can be removed when the promotion is stable and no longer needs debugging.
 
 ## OQ-005: When should the evidence/s1.1/AIE_S1_1_PROMOTION.json be refreshed?
 
-**Context:** The current file on `main` is from a pre-fix run. It should be refreshed with the current run's evidence once `promotion: PASS` is achieved.
+**Status: RESOLVED.** The file has been refreshed with the PASS report from run 33831755655.
 
-**Options:**
-1. Refresh after the aie/bridge leg is fixed (when `promotion: PASS` is achieved).
-2. Refresh after each cycle with the current run's evidence.
-3. Keep the current file and add new evidence files for each run.
+## Next Open Questions (post-promotion)
 
-**Status:** OPEN. Current decision: refresh after `promotion: PASS` is achieved.
+1. **Should the debug logging in bridge.py and http.py be removed?** The timing logs (added in cycle 4-5) are useful for diagnostics but add overhead. Consider gating them more strictly or removing them once the promotion is stable.
+2. **Should the lab ca_ttl workaround be replaced with gateway-side bundle filtering?** This is the production-correct fix for the architectural gap. Estimated 4-6 hours of work.
+3. **Should the AIE_GATEWAY_DEBUG and AIE_BRIDGE_DEBUG env vars be set in production?** Currently they're set in the lab's start_components.sh but not in production configs.

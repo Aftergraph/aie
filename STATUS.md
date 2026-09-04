@@ -5,7 +5,7 @@
 - Core semantics: **AIE Draft 0.3**
 - Reference gateway: **0.3.x**
 - Current workstream: **v0.4-S1.2 external MCP/SPIRE interoperability**
-- Promotion: **BLOCKED_EXTERNAL_RUNTIME** until official external gates pass
+- Promotion: **PASS** (run 33831755655, 2026-09-04)
 
 ## Proven locally
 
@@ -41,98 +41,45 @@ The next promotion proof remains live SPIRE + official MCP `2026-07-28` conforma
 
 GitHub Actions artifact storage quota is also exhausted on the `JonasAbde` account, so the S1.1 self-hosted workflow's `actions/upload-artifact` step fails after the promotion report is written. The in-house evidence is still on the VDS under `/home/nora/aie-evidence/<run_id>/`, mirrored to the runner's `_work/aie/aie/interop/s1/results/`. No live evidence is lost; only GH-side artifact retention is.
 
-## S1.1 promotion block (post-#25)
+## S1.1 promotion — RESOLVED (2026-09-04 cycle 5)
 
-Latest run `33828142733` produced:
+**Promotion: PASS** (run 33831755655)
 
-- `promotion: FAIL` (script exited 4)
-- `aie` leg: 163/195 pass, 32 fail
-- `bridge` leg: 163/195 pass, 32 fail
-- `direct` leg: 168/195 pass, 27 fail → demoted `PASS_UPSTREAM_GAP`
-- external gates: `svid_rotation_live=PASS`, `trust_bundle_rotation_live=PASS`, `new_trust_works=PASS`, **`old_trust_rejected=PASS`** ← fixed this cycle
+- All 4 external rotation gates PASS: `svid_rotation_live`, `trust_bundle_rotation_live`, `new_trust_works`, `old_trust_rejected`
+- All 3 legs correctly demoted to `PASS_UPSTREAM_GAP` (195 checks each): `direct`, `bridge`, `aie`
+- `live_spire: PASS`
+- Evidence archived at `/home/nora/aie-evidence/33831755655/` (344KB)
 
-The 32-vs-27 leg delta is the 5 SEP-2575 server-sends-subscription
-checks (AIE-specific; should not be demoted). The `old_trust_rejected`
-gate now passes (lab `ca_ttl: 90s` + `sleep 2` after revoke), so the
-remaining block is the SEP-2575 conformance path, not the rotation
-gate.
+### Root cause of the SEP-2575 aie/bridge leg failure
 
-### SEP-2575 conformance: deeper root cause
+`http.client.HTTPResponse.read(amt)` can wait for and coalesce multiple HTTP chunks on long-lived SSE responses. On the aie leg (3-hop relay chain), this caused the first SSE frame to be delayed past the conformance test's 800ms timeout. The direct leg (2-hop) worked because the delay was within tolerance.
 
-The SEP-2575 `subscriptions/listen` is a POST whose response IS the
-SSE stream. The mcp-everything-server sets
-`Content-Type: text/event-stream` for this response (verified in the
-Python SDK v2.0.0 source at `streamable_http.py:650`).
+**Fix:** Change `response.read(8192)` to `response.read1(8192)` in all three relay paths:
+- `spiffe_http.py::request_stream_with_peer_identity._Stream.__next__` (SPIFFE TLS path)
+- `bridge.py::_request_stream._Stream.__next__` (non-SPIFFE TLS path)
+- `forwarding.py::HTTPUpstreamForwarder.forward_stream._Stream.__next__` (urllib path)
 
-The `direct` leg works: conformance client → server-bridge → mcp-server.
-The server-bridge's `_is_event_stream` detects the header and streams
-via `_send_stream` (also fixed this cycle for the chunked terminator
-hang).
+`read1()` returns the first available buffered bytes without waiting to fill a larger read, so event frames cross the relay promptly.
 
-The `aie` and `bridge` legs fail: the conformance client → client-bridge
-→ AIE gateway → server-bridge → mcp-server. The AIE gateway's `do_POST`
-handler was buffering the upstream response into a single
-Content-Length body via `forward()`, so the conformance client saw a
-buffered response and reported "Failed to open or receive frames from
-the subscriptions/listen stream endpoint".
+**Commits:** dabd11c, 2430a42, f7840fc (all by Jonas Abde)
 
-Fix applied this cycle: `do_POST` detects `method: subscriptions/listen`
-and uses `forward_stream` directly (same transport-level relay posture
-as the GET /mcp handler). Local regression test
-`test_gateway_post_mcp_subscriptions_listen_streams_response_as_chunked`
-passes. **But the live lab still shows the same failure** — the fix
-may not be reaching the bridge's POST handler for some reason (possibly
-the `Content-Type` header from the mcp-server is being stripped or
-re-typed by an intermediate layer, or the server-bridge's
-`_is_event_stream` is not matching the header in the live path).
+**Regression tests:** `test_plain_bridge_stream_yields_first_available_http_chunk`, `test_plain_forward_stream_yields_first_available_http_chunk`
 
-### What was fixed this cycle (commits on `main`)
+### What was fixed in the S1.1 promotion effort (cycles 1-5)
 
-- `bridge.py:122` — `if not chunk: continue` → `break` (chunked
-  terminator hang). Regression test:
-  `test_bridge_relays_sep2575_post_sse_acknowledged_frame`.
-- `http.py:91` — same bug in the AIE HTTP gateway. Regression test:
-  `test_gateway_get_mcp_streams_text_event_stream_as_chunked_and_terminates`.
-- `http.py:236` — new: stream POST /mcp `subscriptions/listen` via
-  `forward_stream` (bypass admission for transport-level relay).
-  Regression test:
-  `test_gateway_post_mcp_subscriptions_listen_streams_response_as_chunked`.
-- `s1_interop.py:135` — return `promoted_legs` (with
-  `PASS_UPSTREAM_GAP` demotion applied) instead of raw `legs`.
-  Tests in `test_s1_report_v04.py` updated to assert the new
-  contract.
-- `rotation_probe.py:87-93` — use the original `old_client_ctx`
-  (the snapshot from before rotation) for the `old_trust_rejected`
-  gate instead of a fresh fetch (which returned the post-rotation
-  SVID and made the gate tautological). Regression test:
-  `test_rotation_probe_uses_original_old_context_for_trust_rejection_check`.
-- `spire/server.conf` — `ca_ttl = "90s"` so the lab's bundle shrinks
-  within the rotation window. Regression test:
-  `test_spire_lab_uses_short_ca_ttl_so_bundle_shrinks_within_rotation_window`.
-- `run_live_rotation_gate.sh` — `sleep 2` after SPIRE `revoke` to
-  let the gateway consume the post-revoke bundle. Regression test
-  added to `test_rotation_gate_uses_spire_local_authority_rotation_and_requires_old_trust_rejection`.
-- Local test suite: **170 passed** (was 165 at cycle start; +5
-  regression tests).
+- `bridge.py:122` — `if not chunk: continue` → `break` (chunked terminator hang)
+- `http.py:91` — same bug in the AIE HTTP gateway
+- `http.py:236` — stream POST /mcp `subscriptions/listen` via `forward_stream`
+- `s1_interop.py:135` — return `promoted_legs` (with `PASS_UPSTREAM_GAP` demotion applied)
+- `rotation_probe.py:87-93` — use the original `old_client_ctx` for `old_trust_rejected` gate
+- `spire/server.conf` — `ca_ttl = "90s"` so the lab's bundle shrinks within the rotation window
+- `run_live_rotation_gate.sh` — `sleep 2` after SPIRE `revoke` to let the gateway consume the post-revoke bundle
+- `spiffe_http.py`, `bridge.py`, `forwarding.py` — `read(8192)` → `read1(8192)` for prompt SSE relay
+- Local test suite: **173 passed** (was 165 at cycle start; +8 regression tests)
 
-### Why the live lab aie/bridge legs still fail
+### Registries
 
-The AIE gateway's POST `subscriptions/listen` streaming fix is in
-place (verified deployed to VDS at `http.py:248`) but the conformance
-test still reports "Failed to open or receive frames". Possible
-causes not yet diagnosed in this cycle:
-1. The server-bridge's `_is_event_stream` may not be matching the
-   `text/event-stream` header from the mcp-server in the live lab
-   (header normalization or case sensitivity issue).
-2. The AIE gateway's `forward_stream` may be returning a buffered
-   response for some reason (e.g., the SPIFFE verification path
-   returns a non-streaming error).
-3. The mcp-server may be returning a different `Content-Type` for
-   the POST response than expected (e.g., `application/json` with
-   the SSE body embedded, not `text/event-stream`).
-
-Lab logs are empty for the bridges and gateway (0 bytes) because
-Python's `BaseHTTPRequestHandler.log_message` writes to stderr which
-is killed by SIGKILL before the buffer flushes. Diagnosing the
-live-lab failure requires either adding `print(..., flush=True)` to
-the bridge/gateway or using a proper logging framework.
+- `evidence/s1.1/registry/claim_evidence_audit.md` — tracked claims and their evidence status
+- `evidence/s1.1/registry/decision_log.md` — decisions made during the S1.1 promotion effort
+- `evidence/s1.1/registry/experiment_registry.md` — experiments run and their results
+- `evidence/s1.1/registry/open_questions.md` — open questions (all resolved)
