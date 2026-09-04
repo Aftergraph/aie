@@ -76,21 +76,17 @@ def main() -> int:
     # Give every long-lived Workload API watcher a short window to consume the
     # bundle update after the old local authority is revoked.
     time.sleep(2.0)
-    # Use a *fresh* old client SSL context built from a re-fetched SVID
-    # rather than the original one we captured at startup: the gateway's
-    # RotatingTLSContextProvider has already swapped its server-side
-    # context, and against the new authority the old chain is no longer
-    # trusted at the TLS layer. Verifying that this old context is
-    # rejected proves the bundle update propagated; verifying it from
-    # the very first SVID snapshot is meaningless (the agent and gateway
-    # rotated synchronously ~32s in).
-    re_client = WorkloadAPIClient(args.endpoint)
-    try:
-        stale = re_client.fetch_x509_svid(timeout=5.0, hint=args.expected_peer)
-        _, old_client_ctx_fresh = build_ssl_contexts_from_svid(stale, require_client_cert=True)
-    except Exception:
-        old_client_ctx_fresh = old_client_ctx
-    old_ok_after, old_after_detail = can_reach(args.target, args.expected_peer, old_client_ctx_fresh)
+    # Use the *original* old client SSL context captured before rotation
+    # (line 43), not a fresh fetch. The fresh fetch returns the
+    # post-rotation SVID/bundle — its chain is now trusted by the rotated
+    # gateway, so the test would degenerate into `new_trust_works`. The
+    # purpose of this gate is to prove the gateway's trust store no
+    # longer trusts the old CA: the original context's trust store still
+    # contains the old CA, so when the gateway presents a SVID signed by
+    # the new CA, the old client cannot verify it. The agent/gateway
+    # rotate synchronously, so the original SVID snapshot is the only
+    # authoritative "old" we can test against in this lab topology.
+    old_ok_after, old_after_detail = can_reach(args.target, args.expected_peer, old_client_ctx)
     new_ok_after, new_after_detail = can_reach(args.target, args.expected_peer, new_client_ctx)
 
     report = {

@@ -121,3 +121,24 @@ def test_spire_lab_uses_short_agent_and_workload_svid_ttls_for_bounded_rotation_
     config = (ROOT / "interop/s1/spire/server.conf").read_text(encoding="utf-8")
     assert 'default_x509_svid_ttl = "60s"' in config
     assert 'agent_ttl = "60s"' in config
+
+
+def test_rotation_probe_uses_original_old_context_for_trust_rejection_check():
+    # ponytail: the `old_trust_rejected` gate must prove the gateway's
+    # server-side trust store no longer trusts the old CA. The only way
+    # to do that is to test from a client whose trust store still contains
+    # the OLD CA — i.e. the original snapshot from before the rotation
+    # subscription. A fresh fetch returns the post-rotation SVID/bundle,
+    # whose chain is now trusted, so the test degenerates into
+    # `new_trust_works` and the gate is meaningless. Regression: a
+    # previous refactor introduced a fresh fetch and silently turned
+    # this gate into a tautology that always passed.
+    probe = (ROOT / "interop/s1/rotation_probe.py").read_text(encoding="utf-8")
+    assert "old_client_ctx)" in probe or "old_client_ctx)" in probe.replace(" ", "")
+    # The fresh-fetch pattern is what the regression introduced; assert
+    # the probe does NOT re-fetch a SVID just to build the old context.
+    assert "old_client_ctx_fresh" not in probe, (
+        "rotation probe must use the original old_client_ctx for the "
+        "old_trust_rejected gate; re-fetching the SVID returns the "
+        "post-rotation chain and makes the gate tautological."
+    )
