@@ -33,7 +33,12 @@ Evidence: `evidence/s1.1/AIE_S1_1_PROMOTION.json`, archived at `/home/nora/aie-e
 
 The next promotion target is `v0.4-S1.2` (S2 — A2A official TCK over supported transports and task lifecycle semantics) and then `v0.4-S2`.
 
-The repository carries two manual execution providers for the same proof contract: the original GitHub-hosted diagnostic and a dedicated self-hosted Linux workflow using labels `[self-hosted, linux, x64, aie-interop]`. See `docs/s1-self-hosted-runner.md`.
+The repository carries three execution providers:
+1. **GitHub-hosted** `ci.yml` — billing-locked on the JonasAbde account (startup_failure on every job). Kept as a `workflow_dispatch` rollback path.
+2. **Self-hosted** `aie-v04-ci-self-hosted.yml` and `aie-v04-s1-self-hosted.yml` — run on the VDS self-hosted runner with the `aie-interop` label. Covers unit CI and the S1.1 external interop proof.
+3. **Works control plane** `works.yml` — per-push verification through the avc-core pool on the VDS, published as a `works/aie` commit status. See PR #27 for context.
+
+See `docs/s1-self-hosted-runner.md` for the self-hosted runner setup.
 
 ## Local verification
 
