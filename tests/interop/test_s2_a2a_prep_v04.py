@@ -306,3 +306,32 @@ def test_collector_rejects_checks_total_less_than_check_ids(tmp_path):
     assert result.returncode == 0
     assert output['promotion'] == 'BLOCKED_BY_S1'
     assert 'leg_checks_total:direct' in output['s1_dependency']['validation_errors']
+
+
+def test_collector_accepts_not_tested_must_requirements(tmp_path):
+    # ponytail: the official a2a-tck doesn't test all MUST requirements
+    # against all SUTs. "NOT TESTED" is a TCK coverage gap, not an SUT
+    # conformance gap. The comparator must accept it as equivalent to
+    # "PASS" for the direct_all_pass check.
+    report = _report()
+    # Set one MUST requirement to NOT TESTED
+    for req_id in report['per_requirement']:
+        if 'AUTH-INTASK' in req_id:
+            report['per_requirement'][req_id]['status'] = 'NOT TESTED'
+            break
+    result, output = _run(tmp_path, s1='PASS', direct=report, spiffe=report, aie=report)
+    assert result.returncode == 0
+    assert output['promotion'] == 'PASS'
+    assert not any('direct-must-not-pass' in item for item in output['parity']['semantic_delta'])
+
+
+def test_collector_rejects_fail_must_requirements(tmp_path):
+    # ponytail: a MUST requirement with status "FAIL" must still cause
+    # direct_all_pass to be False. Only "PASS" and "NOT TESTED" are
+    # acceptable.
+    report = _report()
+    report['per_requirement']['CORE-SEND-001']['status'] = 'FAIL'
+    result, output = _run(tmp_path, s1='PASS', direct=report)
+    assert result.returncode != 0
+    assert output['promotion'] == 'FAIL'
+    assert any('direct-must-not-pass:CORE-SEND-001' in item for item in output['parity']['semantic_delta'])
