@@ -167,10 +167,9 @@ class HTTPUpstreamForwarder:
                     raise UpstreamAuthenticationError(str(exc)) from exc
                 raise UpstreamTransportError(str(exc)) from exc
         # Non-SPIFFE streaming path: open a plain urllib request and stream
-        # the body via a chunk iterator that calls read(N) on the underlying
-        # response. urllib only supports a streaming response when the
-        # caller reads it incrementally; the chunked-encoding terminator is
-        # implicit when the response is closed by the upstream.
+        # the body incrementally. HTTPResponse.read1() yields the first
+        # available buffered bytes without waiting to fill a larger read,
+        # which is required for prompt delivery of long-lived SSE frames.
         request = urllib.request.Request(
             self.url, data=raw if raw else None, headers=out_headers, method=method.upper()
         )
@@ -194,7 +193,11 @@ class HTTPUpstreamForwarder:
                 return self
 
             def __next__(self):
-                chunk = response.read(8192)
+                # Normal urllib HTTP responses expose read1(), which avoids
+                # coalescing SSE frames. HTTPError wrappers may not, and their
+                # finite error bodies safely fall back to read().
+                reader = getattr(response, "read1", response.read)
+                chunk = reader(8192)
                 if not chunk:
                     self._close()
                     raise StopIteration
