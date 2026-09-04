@@ -99,7 +99,11 @@ def request_stream_with_peer_identity(
 
         def __next__(self):
             _t0 = time.time()
-            chunk = response.read(8192)
+            # HTTPResponse.read(amt) can wait for and coalesce multiple HTTP
+            # chunks on long-lived SSE responses. read1() returns the first
+            # available buffered read so event frames cross the mTLS relay
+            # promptly instead of waiting for later frames or stream close.
+            chunk = response.read1(8192)
             _t1 = time.time()
             if os.environ.get("AIE_GATEWAY_DEBUG") == "1":
                 _first = getattr(self, "_first_read_at", None)

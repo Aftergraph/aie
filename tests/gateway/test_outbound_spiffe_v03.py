@@ -5,7 +5,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 from aie_runtime.errors import AIEError
-from aie_runtime.gateway.spiffe_http import post_bytes_with_peer_identity
+from aie_runtime.gateway import spiffe_http
+from aie_runtime.gateway.spiffe_http import post_bytes_with_peer_identity, request_stream_with_peer_identity
 from aie_runtime.gateway.tls import build_client_ssl_context, build_server_ssl_context
 from tls_material import issue_test_pki
 
@@ -45,3 +46,75 @@ def test_outbound_https_verifies_expected_peer_spiffe_uri_san(tmp_path):
         assert exc.value.code == "AIE-IDENT-002"
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=2)
+
+
+def test_outbound_spiffe_stream_yields_first_available_http_chunk(monkeypatch):
+    expected_spiffe_id = "spiffe://example.org/gateway/b"
+
+    class FakeSocket:
+        def getpeercert(self, binary_form=False):
+            assert binary_form is True
+            return b"peer-der"
+
+    class FakeResponse:
+        status = 200
+
+        def __init__(self):
+            self.read1_calls = 0
+
+        def getheaders(self):
+            return [("Content-Type", "text/event-stream")]
+
+        def read(self, amount=-1):
+            raise AssertionError("streaming relay must not use coalescing HTTPResponse.read()")
+
+        def read1(self, amount=-1):
+            self.read1_calls += 1
+            if self.read1_calls == 1:
+                return b"data: first\n\n"
+            return b""
+
+    response = FakeResponse()
+    connections = []
+
+    class FakeConnection:
+        def __init__(self, *args, **kwargs):
+            self.sock = FakeSocket()
+            self.closed = False
+            connections.append(self)
+
+        def connect(self):
+            return None
+
+        def request(self, *args, **kwargs):
+            return None
+
+        def getresponse(self):
+            return response
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(spiffe_http.http.client, "HTTPSConnection", FakeConnection)
+    monkeypatch.setattr(
+        spiffe_http,
+        "validate_x509_svid_der",
+        lambda cert_der, verified: expected_spiffe_id,
+    )
+
+    status, headers, stream = request_stream_with_peer_identity(
+        "POST",
+        "https://example.org/mcp",
+        b"{}",
+        {"Content-Type": "application/json"},
+        timeout=3,
+        ssl_context=ssl.create_default_context(),
+        expected_peer_spiffe_id=expected_spiffe_id,
+    )
+
+    assert status == 200
+    assert headers["Content-Type"] == "text/event-stream"
+    assert next(stream) == b"data: first\n\n"
+    with pytest.raises(StopIteration):
+        next(stream)
+    assert connections[-1].closed is True
