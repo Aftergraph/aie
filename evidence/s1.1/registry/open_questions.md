@@ -22,7 +22,7 @@ All open questions from the S1.1 promotion effort have been resolved as of 2026-
 
 ## OQ-004: Should the debug logging be removed from start_components.sh?
 
-**Status: DEFERRED.** The debug logging (gated on AIE_BRIDGE_DEBUG=1 / AIE_GATEWAY_DEBUG=1) is still useful for future diagnostics. It can be removed when the promotion is stable and no longer needs debugging.
+**Status: RESOLVED.** The debug logging (gated on AIE_BRIDGE_DEBUG=1 / AIE_GATEWAY_DEBUG=1) was removed in 2026-09-04 cycle 6 (commit 8bcb464) now that the S1.1 promotion is stable and no longer needs debugging. The env vars were also removed from `interop/s1/scripts/start_components.sh`. Regression verified by re-running the S1.1 self-hosted workflow (run 33833660538, `promotion: PASS`).
 
 ## OQ-005: When should the evidence/s1.1/AIE_S1_1_PROMOTION.json be refreshed?
 
@@ -30,6 +30,8 @@ All open questions from the S1.1 promotion effort have been resolved as of 2026-
 
 ## Next Open Questions (post-promotion)
 
-1. **Should the debug logging in bridge.py and http.py be removed?** The timing logs (added in cycle 4-5) are useful for diagnostics but add overhead. Consider gating them more strictly or removing them once the promotion is stable.
-2. **Should the lab ca_ttl workaround be replaced with gateway-side bundle filtering?** This is the production-correct fix for the architectural gap. Estimated 4-6 hours of work.
-3. **Should the AIE_GATEWAY_DEBUG and AIE_BRIDGE_DEBUG env vars be set in production?** Currently they're set in the lab's start_components.sh but not in production configs.
+1. **Should the lab ca_ttl workaround be replaced with gateway-side bundle filtering?** This is the production-correct fix for the architectural gap. Estimated 4-6 hours of work. (D-001, OQ-002 DEFERRED)
+2. **Should the AIE_GATEWAY_DEBUG and AIE_BRIDGE_DEBUG env vars be re-added with stricter gating?** Currently they are no longer recognized. If future diagnostics are needed, the logging should be re-added with proper gating (e.g., rate-limited, opt-in).
+3. **Should the S1.1 promotion report be archived to long-term storage?** The current archive is at `/home/nora/aie-evidence/33831755655/` on the VDS. The VDS is owner-managed; for durability, the evidence should be moved to a long-term storage layer.
+4. **When should S2 (A2A) promotion start?** The S2 preparation tree exists with 16/16 tests passing, but no live promotion has been run. S1.1 is now PASS, so S1.2 is unblocked.
+5. **Should the in-house CI workflow be promoted from "self-hosted" to "works control plane"?** PR #27 (Jonas, commit a2c70c5) added `works.yml` for per-push verification. The two systems are complementary but not identical — should one be deprecated?

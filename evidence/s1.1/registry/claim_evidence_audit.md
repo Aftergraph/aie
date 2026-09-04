@@ -27,5 +27,5 @@ Tracked claims and their evidence status. Updated each cycle.
 The S1.1 promotion is PASS only when:
 1. All 4 external rotation gates PASS (C-003, C-004 are PASS)
 2. The direct leg is either fully PASS or correctly demoted to PASS_UPSTREAM_GAP (C-004 is PASS)
-3. The aie and bridge legs are either fully PASS or correctly demoted to PASS_UPSTREAM_GAP (C-007 is BLOCKED)
+3. The aie and bridge legs are either fully PASS or correctly demoted to PASS_UPSTREAM_GAP (C-007 is PASS)
 4. The promotion report is written to `evidence/s1.1/AIE_S1_1_PROMOTION.json` with `promotion: PASS`

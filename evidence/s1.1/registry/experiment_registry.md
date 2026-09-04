@@ -58,3 +58,12 @@ Experiments run during the S1.1 promotion effort. Each entry records the hypothe
   - `sep-2575-server-tags-subscription-id`: PASS
   - `sep-2575-server-honors-notification-filter`: PASS
 - **Conclusion:** Confirmed. The read1() fix resolves the SEP-2575 conformance failures.
+
+## E-007: Debug logging cleanup regression test (RESOLVED)
+
+- **Date:** 2026-09-04 cycle 6
+- **Run:** 33833660538
+- **Hypothesis:** Removing the debug timing logs (cycle 4) and the AIE_BRIDGE_DEBUG / AIE_GATEWAY_DEBUG env vars (cycle 6) should not regress the S1.1 promotion.
+- **Method:** Removed the debug logging from `bridge.py::_proxy`, `http.py::do_POST`, and `spiffe_http.py::request_stream_with_peer_identity`. Removed the env var exports from `interop/s1/scripts/start_components.sh`. Re-ran the S1.1 self-hosted workflow.
+- **Result:** `promotion: PASS`. All 3 legs correctly demoted to `PASS_UPSTREAM_GAP` (195 checks each). All 4 external rotation gates PASS. `live_spire: PASS`.
+- **Conclusion:** Confirmed. The debug logging was diagnostic-only and is safely removable now that the promotion is stable. The regression test (re-running the self-hosted workflow) confirms no behavior change.
