@@ -9,7 +9,7 @@
 
 ## Proven locally
 
-- repository baseline: 165/165 tests passing after SEP-2575 SSE relay fix + report shape fix (post-#25)
+- repository baseline: 173/173 tests passing after S1.1 promotion (8 new regression tests for SEP-2575 SSE relay, rotation gates, SPIRE lab, and read1() prompt delivery)
 - current S2 A2A-preparation targeted suite: 16/16 tests passing after provenance, S1-attestation, malformed-evidence, and TCK-process-status hardening
 - an earlier integrated S2 review tree reached 144/144; after scratch recovery the current PR head is reported conservatively as baseline + targeted evidence rather than claiming a fresh full-suite rerun
 - two independent runtime paths for C0/D1/T1/F1 semantics

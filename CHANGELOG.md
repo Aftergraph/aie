@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4-S1.1 external promotion — 2026-09-04
+
+- promote S1.1 to PASS (run 33831755655) with all 4 external rotation gates PASS and all 3 legs correctly demoted to `PASS_UPSTREAM_GAP` (195 checks each)
+- fix `spiffe_http.py`, `bridge.py`, `forwarding.py` to use `response.read1(8192)` instead of `response.read(8192)` for prompt SSE relay through `http.client`; the coalescing read was delaying the first SSE frame past the conformance test's 800ms timeout on the 3-hop aie leg
+- add `tests/gateway/test_s1_bridge_streaming_v04.py::test_plain_bridge_stream_yields_first_available_http_chunk` and `tests/gateway/test_forward_streaming_v03.py::test_plain_forward_stream_yields_first_available_http_chunk` as regression tests for the read1() fix
+- add `tests/gateway/test_s1_bridge_v04.py::test_plain_client_bridge_forwards_arbitrary_method_path_headers_and_body_over_spiffe_mtls` for plain bridge SPIFFE mTLS forwarding
+- add `tests/gateway/test_http_gateway.py::test_gateway_post_mcp_subscriptions_listen_streams_response_as_chunked` for the AIE gateway POST subscriptions/listen streaming fix
+- add `tests/s1/test_spire_lab_uses_short_ca_ttl_so_bundle_shrinks_within_rotation_window` for the lab ca_ttl=90s workaround
+- extend `tests/s1/test_rotation_gate_uses_spire_local_authority_rotation_and_requires_old_trust_rejection` to assert the post-revoke sleep
+- add `evidence/s1.1/registry/claim_evidence_audit.md`, `decision_log.md`, `experiment_registry.md`, `open_questions.md` for tracked claims, decisions, experiments, and open questions
+- set `ca_ttl = "90s"` in the SPIRE lab `server.conf` so the old CA is removed from the trust bundle within the rotation window
+- add `sleep 2` after SPIRE `revoke` in `run_live_rotation_gate.sh` to let the gateway consume the post-revoke bundle
+- set `AIE_BRIDGE_DEBUG=1` and `AIE_GATEWAY_DEBUG=1` env vars in `interop/s1/scripts/start_components.sh` for SEP-2575 diagnostics
+- refresh `evidence/s1.1/AIE_S1_1_PROMOTION.json` with the PASS report from run 33831755655
+- archive run evidence at `/home/nora/aie-evidence/33831755655/` (344KB: AIE_S1_1_PROMOTION.json, rotation/, lab-logs/, preflight.json)
+
 ## v0.4-S1.2 SEP-2575 SSE stream passthrough — 2026-09-04
 
 - relay SEP-2575 `notifications/subscriptions/listen` and other `text/event-stream` upstream responses as chunked transfer-encoding to the downstream client; the bridge's `for chunk in stream` loop now `break`s on the empty-chunk terminator (previously `continue`d, which hung the bridge on the chunked terminator and dropped every SEP-2575 stream frame on the floor)

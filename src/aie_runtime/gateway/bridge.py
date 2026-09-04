@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import http.client
-import os
 import ssl
-import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
@@ -111,9 +109,6 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         # sees frames as soon as the upstream produces them. Closing the
         # stream is the caller's responsibility (the connection is closed
         # by the upstream function once iteration ends).
-        # Debug logging for SEP-2575 timing diagnostics.
-        _debug = os.environ.get("AIE_BRIDGE_DEBUG") == "1"
-        _debug_sent = getattr(self, "_debug_stream_first_write", None)
         self.send_response(status)
         for key, value in headers.items():
             if key.lower() in _HOP_BY_HOP or key.lower() == "content-length":
@@ -123,7 +118,6 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         self.end_headers()
         if self.command == "HEAD":
             return
-        import time as _time
         for chunk in stream:
             if not chunk:
                 # ponytail: an empty chunk is the upstream's signal that
@@ -132,24 +126,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 # continue, otherwise the next read blocks forever waiting
                 # for more bytes that never come and the bridge hangs
                 # even after the SSE frame was delivered.
-                if _debug and _debug_sent is not None:
-                    print(
-                        f"[bridge] {self.command} {self.path} stream_exhausted "
-                        f"first_write_at={_debug_sent:.3f} now={_time.time():.3f} "
-                        f"delta={_time.time() - _debug_sent:.3f}s",
-                        file=sys.stderr,
-                        flush=True,
-                    )
                 break
-            if _debug and _debug_sent is None:
-                _debug_sent = _time.time()
-                self._debug_stream_first_write = _debug_sent
-                print(
-                    f"[bridge] {self.command} {self.path} first_chunk_to_client "
-                    f"chunk_len={len(chunk)} at={_debug_sent:.3f}",
-                    file=sys.stderr,
-                    flush=True,
-                )
             self.wfile.write(f"{len(chunk):x}\r\n".encode("ascii") + chunk + b"\r\n")
             self.wfile.flush()
         self.wfile.write(b"0\r\n\r\n")
@@ -164,19 +141,6 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         headers = _sanitize_headers({k: v for k, v in self.headers.items()})
         url = self.server.upstream_base_url + self.path
         context = self.server.outbound_context()
-        # ponytail: debug logging for SEP-2575 diagnostics. Gated on
-        # AIE_BRIDGE_DEBUG and rate-limited to avoid log flooding. Only
-        # logs POST /mcp with subscriptions/listen method.
-        _debug = os.environ.get("AIE_BRIDGE_DEBUG") == "1"
-        _debug_count = getattr(self.server, "_debug_post_count", 0)
-        if _debug and self.command == "POST" and b"subscriptions/listen" in body and _debug_count < 3:
-            self.server._debug_post_count = _debug_count + 1
-            _is_listen = b'"method":"subscriptions/listen"' in body or b'"method": "subscriptions/listen"' in body
-            print(
-                f"[bridge] POST {self.path} body_len={len(body)} is_listen={_is_listen}",
-                file=sys.stderr,
-                flush=True,
-            )
         try:
             if self.server.expected_upstream_spiffe_id is not None:
                 if context is None:
@@ -194,23 +158,9 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 status, response_headers, stream = _request_stream(
                     self.command, url, body, headers, timeout=self.server.timeout, ssl_context=context
                 )
-        except Exception as exc:
-            if _debug and self.command == "POST" and b"subscriptions/listen" in body:
-                print(
-                    f"[bridge] POST {self.path} upstream_exc={type(exc).__name__}: {exc}",
-                    file=sys.stderr,
-                    flush=True,
-                )
+        except Exception:
             self._send_raw(502, b'{"error":"bridge_upstream_failure"}', {"Content-Type": "application/json"})
             return
-        if _debug and self.command == "POST" and b"subscriptions/listen" in body:
-            _ct = response_headers.get("content-type", "?")
-            print(
-                f"[bridge] POST {self.path} upstream_status={status} content_type={_ct} "
-                f"is_event_stream={_is_event_stream(response_headers)}",
-                file=sys.stderr,
-                flush=True,
-            )
         if _is_event_stream(response_headers):
             # ponytail: relay the SSE stream chunk-by-chunk so SEP-2575
             # notifications/subscriptions/listen and any text/event-stream
@@ -314,32 +264,10 @@ def _request_stream(
             return self
 
         def __next__(self):
-            import time as _time
-            _t0 = _time.time()
             # For long-lived SSE/chunked responses, read(amt) can wait for
             # additional data before returning. read1() yields the first
             # available buffered chunk so the bridge forwards frames promptly.
             chunk = response.read1(8192)
-            _t1 = _time.time()
-            # ponytail: debug logging for SEP-2575 timing diagnostics.
-            # Logs the first read from upstream and the delta from stream start.
-            if os.environ.get("AIE_BRIDGE_DEBUG") == "1":
-                _first = getattr(self, "_first_read_at", None)
-                if _first is None:
-                    self._first_read_at = _t0
-                    print(
-                        f"[bridge] _request_stream first_read_from_upstream "
-                        f"at={_t0:.3f} chunk_len={len(chunk)} read_delta={_t1 - _t0:.3f}s",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                else:
-                    print(
-                        f"[bridge] _request_stream read_chunk "
-                        f"at={_t0:.3f} chunk_len={len(chunk)} read_delta={_t1 - _t0:.3f}s",
-                        file=sys.stderr,
-                        flush=True,
-                    )
             if not chunk:
                 self._close()
                 raise StopIteration

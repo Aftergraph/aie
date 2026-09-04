@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import http.client
-import os
 import ssl
-import sys
-import time
 from typing import Mapping
 from urllib.parse import urlparse
 
@@ -98,30 +95,11 @@ def request_stream_with_peer_identity(
             return self
 
         def __next__(self):
-            _t0 = time.time()
             # HTTPResponse.read(amt) can wait for and coalesce multiple HTTP
             # chunks on long-lived SSE responses. read1() returns the first
             # available buffered read so event frames cross the mTLS relay
             # promptly instead of waiting for later frames or stream close.
             chunk = response.read1(8192)
-            _t1 = time.time()
-            if os.environ.get("AIE_GATEWAY_DEBUG") == "1":
-                _first = getattr(self, "_first_read_at", None)
-                if _first is None:
-                    self._first_read_at = _t0
-                    print(
-                        f"[spiffe_http] request_stream first_read_from_upstream "
-                        f"at={_t0:.3f} chunk_len={len(chunk)} read_delta={_t1 - _t0:.3f}s",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                else:
-                    print(
-                        f"[spiffe_http] request_stream read_chunk "
-                        f"at={_t0:.3f} chunk_len={len(chunk)} read_delta={_t1 - _t0:.3f}s",
-                        file=sys.stderr,
-                        flush=True,
-                    )
             if not chunk:
                 self._close()
                 raise StopIteration
