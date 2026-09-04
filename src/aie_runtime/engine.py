@@ -136,6 +136,7 @@ class AdmissionEngine:
                 raise AIEError("AIE-POLICY-001")
 
             outcome = AdmissionOutcome("admitted")
+            self.state.admissions[request.action_id] = request
             self._emit("action.admitted", actionId=request.action_id)
             self._emit("action.committed", actionId=request.action_id)
             self.state.outcomes[request.action_id] = outcome
@@ -143,6 +144,28 @@ class AdmissionEngine:
         except Exception:
             lease.budget_remaining += request.budget_cost
             raise
+
+    def revalidate(self, action_id: str) -> None:
+        """Execution-time revalidation (TH-12 fix).
+
+        The executor MUST call this immediately before running an admitted action.
+        Closes the window between admission and execution: revocation (including
+        parent-lease cascades), lease expiry, and capability/resource drift fail
+        closed here. AIE-AUTH-004 marks execution-time rejection.
+        """
+        request = self.state.admissions.get(action_id)
+        if request is None:
+            raise AIEError("AIE-AUTH-004")
+        # Re-resolve against live state: _raise_on drift/expiry/revocation.
+        try:
+            self._resolve(request)
+        except AIEError:
+            raise
+        # Budget floor: reserved cost must still be coverable at execution time.
+        lease = self.state.leases[request.lease_id]
+        if request.budget_cost > lease.budget_remaining:
+            raise AIEError("AIE-BUDGET-001")
+        self._emit("action.revalidated", actionId=action_id, leaseId=request.lease_id)
 
     def delegate(
         self,
