@@ -40,3 +40,53 @@ The repository now contains a pinned self-hosted runner installer, but registrat
 The next promotion proof remains live SPIRE + official MCP `2026-07-28` conformance parity across direct, bridge, and AIE legs. No provider may mark S1.2 green without that report and its raw evidence.
 
 GitHub Actions artifact storage quota is also exhausted on the `JonasAbde` account, so the S1.1 self-hosted workflow's `actions/upload-artifact` step fails after the promotion report is written. The in-house evidence is still on the VDS under `/home/nora/aie-evidence/<run_id>/`, mirrored to the runner's `_work/aie/aie/interop/s1/results/`. No live evidence is lost; only GH-side artifact retention is.
+
+## S1.1 promotion block (post-#25)
+
+Latest run `33826496344` produced:
+
+- `promotion: FAIL` (script exited 4)
+- `aie` leg: 163/195 pass, 32 fail
+- `bridge` leg: 163/195 pass, 32 fail
+- `direct` leg: 168/195 pass, 27 fail → demoted `PASS_UPSTREAM_GAP`
+- external gates: `svid_rotation_live=PASS`, `trust_bundle_rotation_live=PASS`, `new_trust_works=PASS`, `old_trust_rejected=FAIL`
+
+The 32-vs-27 leg delta is the 5 SEP-2575 server-sends-subscription
+checks (AIE-specific; should not be demoted). If `old_trust_rejected`
+were PASS, the AIE/bridge leg demotion logic in `s1_interop.py:119`
+would demote them to `PASS_UPSTREAM_GAP` and `promotion` would
+reach PASS.
+
+### `old_trust_rejected` is a real architectural gap, not a probe bug
+
+The AIE gateway uses Python's `ssl.SSLContext` which only validates
+trust chains, not CRLs. SPIRE's `taint`+`revoke` operations add the
+old CA to the bundle's revocation list, but the bundle continues to
+include the old CA cert itself, so the gateway's trust store
+continues to accept SVIDs signed by the revoked CA.
+
+To enforce revocation, the gateway must:
+1. Poll SPIRE's `localauthority x509` for revoked CAs
+2. Filter the bundle to exclude revoked CAs
+3. Build the SSL context with the filtered CA file
+
+This is a feature, not a one-line fix, so it is out of scope for
+the current cycle.
+
+### What was fixed this cycle (commits on `main`)
+
+- `bridge.py:122` — `if not chunk: continue` → `break` (chunked
+  terminator hang). Regression test:
+  `test_bridge_relays_sep2575_post_sse_acknowledged_frame`.
+- `http.py:91` — same bug in the AIE HTTP gateway. Regression test:
+  `test_gateway_get_mcp_streams_text_event_stream_as_chunked_and_terminates`.
+- `s1_interop.py:135` — return `promoted_legs` (with
+  `PASS_UPSTREAM_GAP` demotion applied) instead of raw `legs`.
+  Tests in `test_s1_report_v04.py` updated to assert the new
+  contract.
+- `rotation_probe.py:87-93` — use the original `old_client_ctx`
+  (the snapshot from before rotation) for the `old_trust_rejected`
+  gate instead of a fresh fetch (which returned the post-rotation
+  SVID and made the gate tautological). Regression test:
+  `test_rotation_probe_uses_original_old_context_for_trust_rejection_check`.
+- Local test suite: **168 passed** (was 165, +3 regression tests).
