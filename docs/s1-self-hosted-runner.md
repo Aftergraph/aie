@@ -75,7 +75,7 @@ The registration token is consumed from `AIE_RUNNER_REGISTRATION_TOKEN`, is neve
 
 ## External proof execution
 
-When the runner shows online in GitHub, manually dispatch **AIE v0.4 S1 Self-hosted External Interop**. Preserve the uploaded evidence artifact and attach the canonical promotion JSON to issue #5. Keep S1.2 blocked unless `promotion == PASS` and all direct/bridge/AIE official MCP check-ID sets are identical with zero semantic delta.
+When the runner shows online in GitHub, manually dispatch **AIE v0.4 S1 Self-hosted External Interop**. Preserve the uploaded evidence artifact and attach the canonical promotion JSON to issue #5. S1.1 achieved external PASS on 2026-09-04 (run 33831755655); see `evidence/s1.1/registry/walkthrough.md` for the full promotion walkthrough. S1.2 is the next promotion target (A2A official TCK).
 
 The GitHub-hosted probe remains available as a manual diagnostic, but its known pre-runner failure must not be treated as protocol evidence.
 
