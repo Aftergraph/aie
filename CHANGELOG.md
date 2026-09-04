@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4-S1.1 post-promotion cleanup — 2026-09-04
+
+- remove debug timing logs from `bridge.py::_proxy`, `http.py::do_POST`, and `spiffe_http.py::request_stream_with_peer_identity` now that the S1.1 promotion is stable
+- remove `AIE_BRIDGE_DEBUG=1` and `AIE_GATEWAY_DEBUG=1` env var exports from `interop/s1/scripts/start_components.sh`
+- update `STATUS.md` from 165/165 to 173/173 tests
+- add `evidence/s1.1/registry/walkthrough.md` with the end-to-end S1.1 promotion walkthrough
+- add `works.yml` for per-push verification through the works control plane (avc-core pool on VDS); `ci.yml` is now `workflow_dispatch`-only as rollback path
+- update `README.md` with S1.1 PASS status, walkthrough link, 173-test baseline, and three execution providers (GH-hosted dispatch, self-hosted runner, works control plane)
+- update `docs/s1-self-hosted-runner.md` to note S1.1 PASS and S1.2 as next target
+- mark OQ-004 (debug logging removal) as RESOLVED, add E-007 regression test
+- verify cleanup via re-run of S1.1 self-hosted workflow (run 33833660538, `promotion: PASS`)
+
 ## v0.4-S1.1 external promotion — 2026-09-04
 
 - promote S1.1 to PASS (run 33831755655) with all 4 external rotation gates PASS and all 3 legs correctly demoted to `PASS_UPSTREAM_GAP` (195 checks each)

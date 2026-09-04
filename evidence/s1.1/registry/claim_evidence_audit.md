@@ -16,11 +16,13 @@ Tracked claims and their evidence status. Updated each cycle.
 | C-008 | S1.1 promotion: PASS | LIVE (self-hosted runner) | run 33831755655, AIE_S1_1_PROMOTION.json::promotion=PASS | PASS | 2026-09-04 cycle 5 |
 | C-009 | read1() fix unblocks SSE relay through http.client | LIVE (self-hosted runner) | run 33831755655, commit dabd11c (Jonas), commit 2430a42 (Jonas), commit f7840fc (Jonas) | PASS | 2026-09-04 cycle 5 |
 | C-010 | Debug logging cleanup doesn't break promotion | LIVE (self-hosted runner) | run 33833660538, "Run canonical S1 proof" step success, "Show canonical promotion report" step success | PASS | 2026-09-04 cycle 6 |
+| C-011 | works.yml CI control plane covers per-push verification on avc-core pool | LIVE (works control plane on VDS) | PR #27, commit a2c70c5 (Jonas), pytest 171/171 verified | PASS | 2026-09-04 cycle 6 |
 
 ## Evidence Types
 
 - **SIMULATED/INTERNAL**: evidence from local unit tests or simulated lab runs
 - **LIVE/EXTERNAL**: evidence from the self-hosted runner on the VDS against official MCP SDK v2.0.0 and SPIRE 1.15.2
+- **LIVE/WORKS**: evidence from the works control plane (avc-core pool on VDS) running `uv venv` + `pytest` on per-push commits
 
 ## Promotion Criteria
 
