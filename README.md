@@ -1,5 +1,10 @@
 # Agentic Institution Engineering (AIE)
 
+> AIE participates in the broader working ABDE Intelligence research/platform
+> ecosystem while maintaining independent standards governance, claims,
+> conformance evidence, and publication lineage. No platform claim
+> automatically inherits AIE evidence.
+
 **AIE is an experimental standards and reference-implementation project for portable authority, delegation, lifecycle, budget, revocation, and evidence semantics across agent systems.**
 
 The project explores the layer above coordination topology and runtime control:
@@ -31,7 +36,9 @@ Current maturity: **Draft 0.3 / v0.4-S1.1 external interoperability PASS** (run 
 
 Evidence: `evidence/s1.1/AIE_S1_1_PROMOTION.json`, archived at `/home/nora/aie-evidence/33831755655/`.
 
-The next promotion target is `v0.4-S1.2` (S2 — A2A official TCK over supported transports and task lifecycle semantics) and then `v0.4-S2`.
+The next promotion target beyond the S1.1/S2 closure is further external
+interoperability work on supported transports and task lifecycle semantics
+(see `STATUS.md` for the current promotion state and blockers).
 
 The repository carries three execution providers:
 1. **GitHub-hosted** `ci.yml` — billing-locked on the legacy personal account (startup_failure on every job). Kept as a `workflow_dispatch` rollback path.
