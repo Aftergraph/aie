@@ -11,8 +11,11 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # tests/ for conftest import
 
-CONTRACT_PATH = Path(__file__).resolve().parent.parent.parent / "after-graph-governance" / "docs" / "contracts" / "mission-state" / "1.0.json"
+from conftest import resolve_contracts_dir
+
+CONTRACT_PATH = resolve_contracts_dir() / "mission-state" / "1.0.json"
 
 
 @pytest.fixture(scope="module")
