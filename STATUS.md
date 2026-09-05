@@ -4,8 +4,8 @@
 
 - Core semantics: **AIE Draft 0.3**
 - Reference gateway: **0.3.x**
-- Current workstream: **v0.4-S2 external A2A interop (PASS)**
-- Promotion: **PASS** (direct TCK run 2026-09-04, S2 promotion report `/home/nora/aie-evidence/s2-promotion/AIE_S2_A2A_INTEROP.json`)
+- Current workstream: **v0.4-S2 external A2A interop (local TCK PASS; external attestation pending — issues #5/#6 open)**
+- Promotion: **local PASS** (direct TCK run 2026-09-04, S2 promotion report `/home/nora/aie-evidence/s2-promotion/AIE_S2_A2A_INTEROP.json`). External A2A S2 promotion gated on issues #5/#6 — do not claim institutional S2 PASS until externally attested.
 
 ## Proven locally
 
