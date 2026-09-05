@@ -1,3 +1,11 @@
+<!-- aftergraph-brand-os:v1.0.0 -->
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/github/hero.webp">
+    <img src=".github/assets/github/hero.png" alt="AIE — Agentic Institution Engineering" width="100%">
+  </picture>
+</p>
+
 # Agentic Institution Engineering (AIE)
 
 > AIE participates in the broader working ABDE Intelligence research/platform
