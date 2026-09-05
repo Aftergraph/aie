@@ -43,7 +43,7 @@ def test_restart_roundtrip_lease_survives():
         state1.principals["agent:executor"] = Principal(
             "agent:executor", "agent", "spiffe://example.ai/agents/executor"
         )
-        state1.missions["mission:release"] = Mission("mission:release", "active")
+        state1.missions["mission:release"] = Mission("mission:release", "RUNNING")
         state1.leases["lease:executor"] = AuthorityLease(
             id="lease:executor",
             principal_id="agent:executor",
@@ -86,7 +86,7 @@ def test_revocation_persists():
         state1.principals["agent:executor"] = Principal(
             "agent:executor", "agent", "spiffe://example.ai/agents/executor"
         )
-        state1.missions["mission:release"] = Mission("mission:release", "active")
+        state1.missions["mission:release"] = Mission("mission:release", "RUNNING")
         state1.leases["lease:executor"] = AuthorityLease(
             id="lease:executor",
             principal_id="agent:executor",
@@ -128,7 +128,7 @@ def test_budget_reservation_persists():
         state1.principals["agent:executor"] = Principal(
             "agent:executor", "agent", "spiffe://example.ai/agents/executor"
         )
-        state1.missions["mission:release"] = Mission("mission:release", "active")
+        state1.missions["mission:release"] = Mission("mission:release", "RUNNING")
         state1.leases["lease:executor"] = AuthorityLease(
             id="lease:executor",
             principal_id="agent:executor",
@@ -176,7 +176,7 @@ def test_admissions_persists():
         state1.principals["agent:executor"] = Principal(
             "agent:executor", "agent", "spiffe://example.ai/agents/executor"
         )
-        state1.missions["mission:release"] = Mission("mission:release", "active")
+        state1.missions["mission:release"] = Mission("mission:release", "RUNNING")
         state1.leases["lease:executor"] = AuthorityLease(
             id="lease:executor",
             principal_id="agent:executor",

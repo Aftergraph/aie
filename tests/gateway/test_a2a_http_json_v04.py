@@ -40,7 +40,7 @@ def gateway(tmp_path, revoked=False):
     tmp_path.mkdir(parents=True, exist_ok=True)
     state = InMemoryState()
     state.principals["p"] = Principal("p", "agent", "spiffe://example.org/a")
-    state.missions["m"] = Mission("m", "active")
+    state.missions["m"] = Mission("m", "RUNNING")
     state.leases["l"] = AuthorityLease(
         "l",
         "p",

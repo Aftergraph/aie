@@ -10,7 +10,7 @@ def test_build_gateway_from_config_loads_authority_and_local_policy(tmp_path):
         "principals": [
             {"id": "agent:refund", "type": "agent", "identity_ref": "spiffe://example.org/agent/refund"}
         ],
-        "missions": [{"id": "mission:refunds", "state": "active"}],
+        "missions": [{"id": "mission:refunds", "state": "RUNNING"}],
         "leases": [
             {
                 "id": "lease:refund",

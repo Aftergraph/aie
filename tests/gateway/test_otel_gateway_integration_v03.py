@@ -19,7 +19,7 @@ def test_gateway_decision_is_exported_as_child_of_incoming_trace(tmp_path):
     memory = InMemorySpanExporter(); provider = TracerProvider(); provider.add_span_processor(SimpleSpanProcessor(memory))
     state = InMemoryState()
     state.principals["p"] = Principal("p", "agent", "spiffe://example.org/agent/refund")
-    state.missions["m"] = Mission("m", "active")
+    state.missions["m"] = Mission("m", "RUNNING")
     state.leases["l"] = AuthorityLease("l", "p", "m", {"mcp.tools.call:refund_customer"}, ("mcp://tool/refund_customer",), NOW + timedelta(hours=1), 10)
     gateway = AIEGateway(
         state=state, store=SQLiteGatewayStore(tmp_path / "g.db"), policy=LocalPolicyAdapter(lambda _: True), clock=lambda: NOW,

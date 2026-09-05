@@ -18,7 +18,7 @@ class FunctionalRuntimeRevalidationTest(unittest.TestCase):
         now = datetime.now(timezone.utc)
         self.state = {
             "principals": {"p1": {"id": "p1"}},
-            "missions": {"m1": {"id": "m1", "state": "active"}},
+            "missions": {"m1": {"id": "m1", "state": "RUNNING"}},
             "leases": {
                 "lease-1": {
                     "id": "lease-1",

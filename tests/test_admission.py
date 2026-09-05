@@ -12,7 +12,7 @@ NOW = datetime(2026, 9, 3, 0, 0, tzinfo=timezone.utc)
 def base_engine(*, policy=lambda _: True):
     state = InMemoryState()
     state.principals["agent:executor"] = Principal("agent:executor", "agent", "spiffe://example.ai/agents/executor")
-    state.missions["mission:release"] = Mission("mission:release", "active")
+    state.missions["mission:release"] = Mission("mission:release", "RUNNING")
     state.leases["lease:executor"] = AuthorityLease(
         id="lease:executor",
         principal_id="agent:executor",

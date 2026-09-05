@@ -64,3 +64,34 @@ def test_contract_canonical_sources_reference_aie(contract):
     sources = contract["canonical_sources"]
     assert "aie/src/aie_runtime/engine.py" in sources["authority_engine"]
     assert "aie/src/aie_runtime/persistent_state.py" in sources["persistent_state"]
+
+
+def test_cli_rejects_invalid_mission_state(contract, tmp_path, monkeypatch):
+    """H9: CLI config-load skal afvise mission-states uden for 1.0.json-enum (fail-closed)."""
+    import json as _json
+    config = {"missions": [{"id": "mission:bad", "state": "active"}]}
+    cfg = tmp_path / "config.json"
+    cfg.write_text(_json.dumps(config))
+    from aie_runtime.gateway.cli import build_gateway_from_config
+    with pytest.raises(ValueError, match="invalid mission state"):
+        build_gateway_from_config(str(cfg))
+
+
+def test_cli_accepts_valid_mission_state(contract, tmp_path):
+    """H9: gyldigt mission-state (RUNNING) accepteres af CLI-config-load."""
+    import json as _json
+    config = {"missions": [{"id": "mission:ok", "state": "RUNNING"}]}
+    cfg = tmp_path / "config.json"
+    cfg.write_text(_json.dumps(config))
+    from aie_runtime.gateway.cli import build_gateway_from_config
+    gw = build_gateway_from_config(str(cfg))
+    assert gw.state.missions["mission:ok"].state == "RUNNING"
+
+
+def test_engine_mission_states_match_contract_enum(contract):
+    """H9: MISSION_STATES-konstanten i engine.py == 1.0.json-enum."""
+    from aie_runtime.engine import MISSION_STATES
+    enum_states = set(contract["properties"]["state"]["enum"])
+    assert MISSION_STATES == enum_states, (
+        f"engine.MISSION_STATES {sorted(MISSION_STATES)} != contract enum {sorted(enum_states)}"
+    )

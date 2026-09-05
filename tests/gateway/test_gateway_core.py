@@ -15,7 +15,7 @@ def make_gateway(tmp_path, policy=lambda _: True):
     state.principals["agent:refund"] = Principal(
         "agent:refund", "agent", "spiffe://example.org/agent/refund"
     )
-    state.missions["mission:refunds"] = Mission("mission:refunds", "active")
+    state.missions["mission:refunds"] = Mission("mission:refunds", "RUNNING")
     state.leases["lease:refund"] = AuthorityLease(
         id="lease:refund",
         principal_id="agent:refund",

@@ -31,7 +31,7 @@ def _object_runtime(now: datetime, setup: dict[str, Any], policy_mode: str):
     state = InMemoryState()
     state.principals["agent:a"] = Principal("agent:a", "agent", "spiffe://example.ai/a")
     state.principals["agent:b"] = Principal("agent:b", "agent", "spiffe://example.ai/b")
-    state.missions["mission:m"] = Mission("mission:m", "active")
+    state.missions["mission:m"] = Mission("mission:m", "RUNNING")
     expires = now - timedelta(seconds=1) if setup.get("expired") else now + timedelta(minutes=5)
     state.leases["lease:l"] = AuthorityLease(
         id="lease:l", principal_id="agent:a", mission_id="mission:m",
@@ -47,7 +47,7 @@ def _functional_runtime(now: datetime, setup: dict[str, Any], policy_mode: str):
     expires = now - timedelta(seconds=1) if setup.get("expired") else now + timedelta(minutes=5)
     state = {
         "principals": {"agent:a": {"id": "agent:a"}, "agent:b": {"id": "agent:b"}},
-        "missions": {"mission:m": {"id": "mission:m", "state": "active"}},
+        "missions": {"mission:m": {"id": "mission:m", "state": "RUNNING"}},
         "leases": {"lease:l": {
             "id": "lease:l", "principal_id": "agent:a", "mission_id": "mission:m",
             "capabilities": list(setup.get("parent_capabilities", ["repo.read", "repo.write"])), "resource_prefixes": ["repo://acme/"],

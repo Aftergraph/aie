@@ -24,7 +24,7 @@ class ExecutionTimeRevalidationTest(unittest.TestCase):
     def setUp(self):
         self.state = InMemoryState()
         self.state.principals["p1"] = Principal("p1", "human", "ref:p1")
-        self.state.missions["m1"] = Mission("m1", "active")
+        self.state.missions["m1"] = Mission("m1", "RUNNING")
         self.engine = AdmissionEngine(self.state, policy=lambda d: True)
         self.lease = AuthorityLease(
             id="lease-1",

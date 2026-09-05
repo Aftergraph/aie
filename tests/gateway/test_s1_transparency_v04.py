@@ -20,7 +20,7 @@ NOW = datetime(2026, 9, 3, 1, 0, tzinfo=timezone.utc)
 def make_gateway(tmp_path, *, bindings=None, protocol_passthrough_on_parse_error=False):
     state = InMemoryState()
     state.principals["p"] = Principal("p", "agent", "spiffe://example.org/client/conformance")
-    state.missions["m"] = Mission("m", "active")
+    state.missions["m"] = Mission("m", "RUNNING")
     state.leases["l"] = AuthorityLease(
         "l",
         "p",

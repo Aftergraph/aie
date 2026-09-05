@@ -77,7 +77,7 @@ def _material(pki) -> WorkloadAPISVID:
 def _gateway(tmp_path):
     state = InMemoryState()
     state.principals["p"] = Principal("p", "agent", "spiffe://example.org/agent/refund")
-    state.missions["m"] = Mission("m", "active")
+    state.missions["m"] = Mission("m", "RUNNING")
     state.leases["l"] = AuthorityLease(
         "l", "p", "m", {"mcp.tools.call:refund_customer"}, ("mcp://tool/refund_customer",),
         NOW + timedelta(hours=1), 10,

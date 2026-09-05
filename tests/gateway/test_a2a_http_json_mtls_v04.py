@@ -42,7 +42,7 @@ def test_http_json_binding_uses_real_mtls_spiffe_identity(tmp_path):
     pki = issue_test_pki(tmp_path / "pki")
     state = InMemoryState()
     state.principals["p"] = Principal("p", "agent", "spiffe://example.org/agent/refund")
-    state.missions["m"] = Mission("m", "active")
+    state.missions["m"] = Mission("m", "RUNNING")
     state.leases["l"] = AuthorityLease(
         "l",
         "p",

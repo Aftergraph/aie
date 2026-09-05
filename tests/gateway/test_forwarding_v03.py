@@ -17,7 +17,7 @@ NOW = datetime(2026, 9, 3, 1, 0, tzinfo=timezone.utc)
 def make_gateway(tmp_path):
     state = InMemoryState()
     state.principals["agent:refund"] = Principal("agent:refund", "agent", "spiffe://example.org/agent/refund")
-    state.missions["mission:refunds"] = Mission("mission:refunds", "active")
+    state.missions["mission:refunds"] = Mission("mission:refunds", "RUNNING")
     state.leases["lease:refund"] = AuthorityLease(
         id="lease:refund",
         principal_id="agent:refund",

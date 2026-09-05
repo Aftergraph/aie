@@ -59,7 +59,7 @@ class TestHC4BudgetConservation:
         """HC4-02: Admission reserves budget via ledger."""
         state = InMemoryState()
         state.principals["p1"] = Principal(id="p1", type="test", identity_ref="test")
-        state.missions["m1"] = Mission(id="m1", state="active")
+        state.missions["m1"] = Mission(id="m1", state="RUNNING")
         
         now = datetime.now(timezone.utc)
         ledger = BudgetLedger(budget_usd=50.0)
@@ -92,7 +92,7 @@ class TestHC4BudgetConservation:
         """HC4-02: Admission rejects when budget exhausted."""
         state = InMemoryState()
         state.principals["p1"] = Principal(id="p1", type="test", identity_ref="test")
-        state.missions["m1"] = Mission(id="m1", state="active")
+        state.missions["m1"] = Mission(id="m1", state="RUNNING")
         
         now = datetime.now(timezone.utc)
         ledger = BudgetLedger(budget_usd=20.0)
@@ -139,7 +139,7 @@ class TestHC4BudgetConservation:
         """HC4-02: Revalidation fails closed when budget depleted."""
         state = InMemoryState()
         state.principals["p1"] = Principal(id="p1", type="test", identity_ref="test")
-        state.missions["m1"] = Mission(id="m1", state="active")
+        state.missions["m1"] = Mission(id="m1", state="RUNNING")
         
         now = datetime.now(timezone.utc)
         ledger = BudgetLedger(budget_usd=20.0)
@@ -172,7 +172,7 @@ class TestHC4BudgetConservation:
         """HC4-02: Parallel execution budget accounting."""
         state = InMemoryState()
         state.principals["p1"] = Principal(id="p1", type="test", identity_ref="test")
-        state.missions["m1"] = Mission(id="m1", state="active")
+        state.missions["m1"] = Mission(id="m1", state="RUNNING")
         
         now = datetime.now(timezone.utc)
         ledger = BudgetLedger(budget_usd=20.0)

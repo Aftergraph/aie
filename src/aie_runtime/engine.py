@@ -16,6 +16,14 @@ class Principal:
     identity_ref: str
 
 
+# Canonical mission lifecycle states — must match
+# after-graph-governance/docs/contracts/mission-state/1.0.json enum (H9 alignment).
+MISSION_STATES = frozenset({
+    "DRAFT", "READY", "AUTHORIZED", "RUNNING", "PAUSED", "VERIFYING",
+    "VERIFIED", "RECOVERING", "NEEDS_INPUT", "FAILED", "CANCELLED", "REVOKED",
+})
+
+
 @dataclass(frozen=True)
 class Mission:
     id: str

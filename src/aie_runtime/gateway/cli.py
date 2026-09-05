@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Any
 
-from aie_runtime.engine import AuthorityLease, Mission, Principal
+from aie_runtime.engine import AuthorityLease, MISSION_STATES, Mission, Principal
 from aie_runtime.store import InMemoryState
 
 from .core import AIEGateway
@@ -67,6 +67,11 @@ def build_gateway_from_config(
         state.principals[principal.id] = principal
     for value in config.get("missions", []):
         mission = Mission(value["id"], value["state"])
+        if mission.state not in MISSION_STATES:
+            raise ValueError(
+                f"invalid mission state {mission.state!r} for {mission.id!r}: "
+                f"must be one of {sorted(MISSION_STATES)}"
+            )
         state.missions[mission.id] = mission
     for value in config.get("leases", []):
         lease = AuthorityLease(

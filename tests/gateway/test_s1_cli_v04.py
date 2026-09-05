@@ -15,7 +15,7 @@ def test_config_loads_transparent_authority_binding(tmp_path):
     config = {
         "store": str(tmp_path / "g.db"),
         "principals": [{"id": "p", "type": "agent", "identity_ref": "spiffe://example.org/client/conformance"}],
-        "missions": [{"id": "m", "state": "active"}],
+        "missions": [{"id": "m", "state": "RUNNING"}],
         "leases": [{
             "id": "l", "principal_id": "p", "mission_id": "m",
             "capabilities": ["mcp.tools.call:refund_customer"],

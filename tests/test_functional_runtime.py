@@ -11,7 +11,7 @@ NOW = datetime(2026, 9, 3, tzinfo=timezone.utc)
 def state():
     return {
         "principals": {"agent:a": {"id": "agent:a"}},
-        "missions": {"mission:m": {"id": "mission:m", "state": "active"}},
+        "missions": {"mission:m": {"id": "mission:m", "state": "RUNNING"}},
         "leases": {
             "lease:l": {
                 "id": "lease:l",

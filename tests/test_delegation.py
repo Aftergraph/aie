@@ -13,7 +13,7 @@ def engine_with_parent():
     state = InMemoryState()
     state.principals["agent:parent"] = Principal("agent:parent", "agent", "spiffe://example.ai/agents/parent")
     state.principals["agent:child"] = Principal("agent:child", "agent", "spiffe://example.ai/agents/child")
-    state.missions["mission:x"] = Mission("mission:x", "active")
+    state.missions["mission:x"] = Mission("mission:x", "RUNNING")
     state.leases["lease:parent"] = AuthorityLease(
         id="lease:parent",
         principal_id="agent:parent",

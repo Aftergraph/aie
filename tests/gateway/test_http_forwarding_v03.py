@@ -39,7 +39,7 @@ class Upstream(BaseHTTPRequestHandler):
 def gateway(tmp_path):
     state = InMemoryState()
     state.principals["p"] = Principal("p", "agent", "spiffe://example.org/agent/refund")
-    state.missions["m"] = Mission("m", "active")
+    state.missions["m"] = Mission("m", "RUNNING")
     state.leases["l"] = AuthorityLease("l", "p", "m", {"mcp.tools.call:refund_customer", "a2a.message.send"}, ("mcp://tool/refund_customer", "a2a://message/"), NOW + timedelta(hours=1), 10)
     return AIEGateway(state=state, store=SQLiteGatewayStore(tmp_path / "g.db"), policy=LocalPolicyAdapter(lambda _: True), clock=lambda: NOW)
 

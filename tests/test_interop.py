@@ -73,7 +73,7 @@ def test_signed_object_authority_can_execute_in_independent_functional_runtime()
     )
     state = {
         "principals": {"agent:a": {"id": "agent:a"}},
-        "missions": {"mission:m": {"id": "mission:m", "state": "active"}},
+        "missions": {"mission:m": {"id": "mission:m", "state": "RUNNING"}},
         "leases": {
             imported.id: {
                 "id": imported.id,

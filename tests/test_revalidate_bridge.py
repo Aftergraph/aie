@@ -24,7 +24,7 @@ BOUNDING = "a" * 64
 def _state_with_admitted_action(path: Path, extensions=()) -> None:
     state = PersistentState(db_path=str(path))
     state.principals["p1"] = Principal("p1", "agent", "ref:p1")
-    state.missions["m1"] = Mission("m1", "active")
+    state.missions["m1"] = Mission("m1", "RUNNING")
     state.leases["l1"] = AuthorityLease(
         id="l1", principal_id="p1", mission_id="m1", capabilities={"fs.read"},
         resource_prefixes=("/data/",), expires_at=NOW + timedelta(hours=1),
