@@ -145,6 +145,35 @@ class _GatewayHandler(BaseHTTPRequestHandler):
                 return
             self._json(200, {"events": self.server.gateway.store.list_evidence()})
             return
+        if self.path == "/leases":
+            if not self._authorized():
+                self._json(401, {"error": "unauthorized"})
+                return
+            leases = [
+                self._serialize_lease(l) for l in self.server.gateway.state.leases.values()
+            ]
+            self._json(200, {"leases": leases, "count": len(leases)})
+            return
+        if self.path == "/admissions":
+            if not self._authorized():
+                self._json(401, {"error": "unauthorized"})
+                return
+            admissions = [
+                json.loads(json.dumps(a.__dict__, default=str))
+                for a in self.server.gateway.state.admissions.values()
+            ]
+            self._json(200, {"admissions": admissions, "count": len(admissions)})
+            return
+        if self.path == "/missions":
+            if not self._authorized():
+                self._json(401, {"error": "unauthorized"})
+                return
+            missions = [
+                json.loads(json.dumps(m.__dict__, default=str))
+                for m in self.server.gateway.state.missions.values()
+            ]
+            self._json(200, {"missions": missions, "count": len(missions)})
+            return
         if self.path not in {"/mcp", "/a2a"}:
             self._json(404, {"error": "not_found"})
             return
@@ -190,6 +219,19 @@ class _GatewayHandler(BaseHTTPRequestHandler):
             return
         self.server.gateway.store.revoke(lease_id, revoked_at=revoked_at, source_gateway=identity.spiffe_id)
         self._json(200, {"accepted": True, "lease_id": lease_id})
+
+    def _serialize_lease(self, lease) -> dict:
+        """Serialize an AuthorityLease to a JSON-compatible dict."""
+        d = lease.__dict__ if hasattr(lease, "__dict__") else {}
+        result = {}
+        for k, v in d.items():
+            if isinstance(v, set):
+                result[k] = sorted(v)
+            elif hasattr(v, "isoformat"):
+                result[k] = v.isoformat()
+            else:
+                result[k] = v
+        return result
 
     def do_POST(self) -> None:
         if self.path == "/federation/revocations":
