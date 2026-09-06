@@ -5,7 +5,15 @@ type: software
 authors:
   - family-names: "Abde"
     given-names: "Jonas"
-repository-code: "https://github.com/JonasAbde/aie"
+repository-code: "https://github.com/Aftergraph/aie"
+url: "https://github.com/Aftergraph/aie"
 license: Apache-2.0
 version: "0.4-s1.1-dev"
 date-released: "2026-09-03"
+keywords:
+  - agentic institution engineering
+  - autonomous agents
+  - delegated authority
+  - agent governance
+  - agent interoperability
+  - conformance
