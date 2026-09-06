@@ -13,40 +13,21 @@ jobs:
     runs-on: [self-hosted, linux, x64, aie-interop]
     timeout-minutes: 5
     steps:
-      - name: Inspect Hermes metadata only
+      - name: Inspect environment key names only
         shell: bash
         run: |
           set -euo pipefail
           echo "RUNNER_OK HOST=$(hostname) USER=$(id -un)"
-          echo "HERMES_FILES_BEGIN"
-          for d in /opt/avc/autonomous-venture-company/.hermes /srv/avc/controller/.hermes /etc/hermes-forge /srv/exodus; do
-            if [[ -e "$d" ]]; then
-              echo "ROOT=$d"
-              find "$d" -maxdepth 4 -type f -printf '%p\n' 2>/dev/null | grep -Ei '(config|profile|telegram|hermes|env|credential|secret)' | head -120 || true
-            fi
-          done
-          echo "HERMES_FILES_END"
-          echo "HERMES_EXECUTABLES_BEGIN"
-          find /opt /srv /home -maxdepth 7 -type f \( -name hermes -o -name 'hermes.exe' \) -perm /111 -print 2>/dev/null | head -50 || true
-          echo "HERMES_EXECUTABLES_END"
-          echo "ENVFILE_HINTS_BEGIN"
-          for svc in avc-runner-bridge.service hermes-forge-deploy.service hermes-forge-mcp-ci.service forge-forward-journal.service; do
-            if systemctl cat "$svc" >/dev/null 2>&1; then
-              systemctl show "$svc" -p EnvironmentFiles --value 2>/dev/null | sed "s#^#$svc #" || true
-            fi
-          done
-          echo "ENVFILE_HINTS_END"
-          echo "CONFIG_KEYS_BEGIN"
-          for f in \
-            /opt/avc/autonomous-venture-company/.hermes/config.yaml \
-            /opt/avc/autonomous-venture-company/.hermes/config.yml \
-            /opt/avc/autonomous-venture-company/.hermes/config.json \
-            /srv/avc/controller/.hermes/config.yaml \
-            /srv/avc/controller/.hermes/config.yml \
-            /srv/avc/controller/.hermes/config.json; do
+          for f in /etc/hermes-forge/forge.env /etc/avc-runner-bridge.env; do
             if [[ -r "$f" ]]; then
-              echo "CONFIG=$f"
-              grep -Ei 'telegram|bot|token|platform' "$f" 2>/dev/null | sed -E 's/[=:].*$/=<redacted>/' | head -80 || true
+              echo "ENV_FILE=$f"
+              sed -n -E 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p' "$f" \
+                | grep -Ei 'telegram|(^|_)tg(_|$)|bot|chat|notify|hermes' \
+                | sort -u \
+                | sed 's/$/=<redacted>/' || true
             fi
           done
-          echo "CONFIG_KEYS_END"
+          echo "FORGE_STATUS_BEGIN"
+          systemctl is-active hermes-forge-deploy.service 2>/dev/null || true
+          systemctl is-active hermes-forge-mcp-ci.service 2>/dev/null || true
+          echo "FORGE_STATUS_END"
