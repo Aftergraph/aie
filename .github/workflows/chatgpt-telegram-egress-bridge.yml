@@ -8,108 +8,19 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: chatgpt-telegram-egress-bridge
-  cancel-in-progress: false
-
 jobs:
-  live-smoke:
+  probe:
     runs-on: [self-hosted, linux, x64, aie-interop]
     timeout-minutes: 5
     steps:
-      - name: Find existing Hermes/Telegram runtime and send one safe live status
+      - name: Probe runner
         shell: bash
         run: |
           set -euo pipefail
-          set +x
-
-          TASK="chatgpt-aie-bridge-${GITHUB_RUN_ID}"
-          echo "HOST=$(hostname) USER=$(id -un)"
-
-          # Route 1: use an existing Hermes installation/profile if present.
-          HERMES_BIN="$(command -v hermes || true)"
-          PROFILE=""
-          for p in \
-            "$HOME/.hermes/profiles/avc" \
-            "/root/.hermes/profiles/avc" \
-            "/opt/avc-control/hermes/profiles/avc" \
-            "/srv/avc-control/hermes/profiles/avc"; do
-            if [[ -d "$p" ]]; then PROFILE="$p"; break; fi
+          echo "RUNNER_OK"
+          echo "HOST=$(hostname)"
+          echo "USER=$(id -un)"
+          if command -v hermes >/dev/null 2>&1; then echo "HERMES_PRESENT=true"; else echo "HERMES_PRESENT=false"; fi
+          for p in "$HOME/.hermes/profiles/avc" /root/.hermes/profiles/avc /etc/avc-control/secrets /opt/avc-control; do
+            if [ -e "$p" ]; then echo "PATH_PRESENT=$p"; fi
           done
-
-          if [[ -n "$HERMES_BIN" && -n "$PROFILE" ]]; then
-            echo "ROUTE=hermes profile_present=true"
-            export HERMES_HOME="$PROFILE"
-            event1=$(python3 - <<PY
-import json
-print(json.dumps({"task_id":"$TASK","status":"INFO","current":1,"total":2,"phase":"egress-bridge","message":"ChatGPT fandt AVC Hermes via Aftergraph self-hosted runner. Live Telegram-test."}))
-PY
-)
-            if "$HERMES_BIN" send --to telegram:Jonas --status-key "$TASK" --event "$event1"; then
-              sleep 2
-              event2=$(python3 - <<PY
-import json
-print(json.dumps({"task_id":"$TASK","status":"COMPLETE","current":2,"total":2,"phase":"verified","message":"Live E2E verificeret via AIE self-hosted bridge."}))
-PY
-)
-              "$HERMES_BIN" send --to telegram:Jonas --status-key "$TASK" --event "$event2"
-              echo "LIVE_E2E_OK route=hermes"
-              exit 0
-            fi
-            echo "HERMES_ROUTE_FAILED"
-          else
-            echo "ROUTE=hermes unavailable hermes_present=$([[ -n "$HERMES_BIN" ]] && echo true || echo false) profile_present=$([[ -n "$PROFILE" ]] && echo true || echo false)"
-          fi
-
-          # Route 2: load a machine-local dotenv containing Telegram credentials.
-          # Never print values. Only inspect variable names and use them in-process.
-          CANDIDATES=(
-            "$HOME/.hermes/profiles/avc/.env"
-            "/root/.hermes/profiles/avc/.env"
-            "/etc/avc-control/secrets/avc.env"
-            "/etc/avc-control/runtime.env"
-            "/opt/avc-control/.env"
-          )
-          ENV_FILE=""
-          for f in "${CANDIDATES[@]}"; do
-            if [[ -r "$f" ]] && grep -Eq '^(TELEGRAM_BOT_TOKEN|TG_TELEGRAM_TOKEN|TG_BRIDGE_TOKEN)=' "$f"; then
-              ENV_FILE="$f"; break
-            fi
-          done
-
-          if [[ -n "$ENV_FILE" ]]; then
-            echo "ROUTE=dotenv credentials_present=true"
-            set -a
-            # shellcheck disable=SC1090
-            source "$ENV_FILE"
-            set +a
-          else
-            echo "ROUTE=dotenv credentials_present=false"
-          fi
-
-          TOKEN="${TELEGRAM_BOT_TOKEN:-${TG_TELEGRAM_TOKEN:-${TG_BRIDGE_TOKEN:-}}}"
-          CHAT_ID="${TELEGRAM_CHAT_ID:-${TG_NOTIFY_CHAT_ID:-7012804461}}"
-          if [[ -z "$TOKEN" ]]; then
-            echo "NO_USABLE_TELEGRAM_CREDENTIAL_ROUTE"
-            exit 78
-          fi
-
-          initial='<b>AVC · chatgpt-aie-egress</b>\n\n🔵 <b>INFO · 1/2</b>\n\nChatGPT → Aftergraph self-hosted runner → Telegram live test.'
-          final='<b>AVC · chatgpt-aie-egress</b>\n\n🟢 <b>COMPLETE · 2/2</b>\n\nLive E2E verificeret. Samme Telegram message_id blev redigeret in-place.'
-          send_json=$(python3 - "$CHAT_ID" "$initial" <<'PY'
-import json,sys
-print(json.dumps({"chat_id":sys.argv[1],"text":sys.argv[2],"parse_mode":"HTML","disable_notification":True,"link_preview_options":{"is_disabled":True}}))
-PY
-)
-          send_resp=$(curl --fail-with-body --silent --show-error -H 'Content-Type: application/json' -d "$send_json" "https://api.telegram.org/bot${TOKEN}/sendMessage")
-          message_id=$(python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("ok"); print(x["result"]["message_id"])' <<<"$send_resp")
-          echo "SEND_OK message_id=$message_id"
-          edit_json=$(python3 - "$CHAT_ID" "$message_id" "$final" <<'PY'
-import json,sys
-print(json.dumps({"chat_id":sys.argv[1],"message_id":int(sys.argv[2]),"text":sys.argv[3],"parse_mode":"HTML","link_preview_options":{"is_disabled":True}}))
-PY
-)
-          edit_resp=$(curl --fail-with-body --silent --show-error -H 'Content-Type: application/json' -d "$edit_json" "https://api.telegram.org/bot${TOKEN}/editMessageText")
-          edit_id=$(python3 -c 'import json,sys; x=json.load(sys.stdin); assert x.get("ok"); print(x["result"]["message_id"])' <<<"$edit_resp")
-          [[ "$message_id" == "$edit_id" ]] || { echo "MESSAGE_ID_CHANGED"; exit 1; }
-          echo "LIVE_E2E_OK route=direct-api message_id=$message_id same_message_id=true"
