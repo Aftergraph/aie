@@ -1,17 +1,21 @@
-# Screenshot evidence contract — AIE
+# Evidence contract — AIE (Agentic Institution Engineering)
 
-`product-main.webp` is a technical product visual rendered from the repository architecture. It is **not** a UI screenshot.
+AIE is a standards/conformance repository — no web UI to capture. Honest
+evidence instead:
 
-Actual UI screenshots may only be committed when reproduced from a running build.
+## Real conformance test evidence (2026-09-06)
 
-Capture contract:
-- `01-overview.webp` — 1920×1080
-- `02-primary-workflow.webp` — 1920×1080
-- `03-detail-view.webp` — 1920×1080
-- `04-live-state.webp` — 1920×1080
-- `05-evidence.webp` — 1920×1080
-- `06-mobile.webp` — native/mobile
-- `07-dark-mode.webp` — 1920×1080
-- `08-command-interface.webp` — 1920×1080
+- `PYTHONPATH=src python -m pytest tests/ -q --no-header -p no:cacheprovider`
+  → **272 passed** (41.95s) at exact HEAD 2533f66.
+- Note: without `PYTHONPATH=src`, the host resolves `aie_runtime` to a
+  different checkout (`C:\Users\empir\workspace\aie`) — environment
+  collision, not a repo defect. Isolated run against this repo's own `src/`
+  is fully green.
 
-Generated or edited mock UI must never be presented as evidence of implemented behavior.
+Full transcript: agent workspace `v2-audit/evidence/AIE-TEST-EVIDENCE.md`.
+
+`product-main.webp` (a technical product visual rendered from repository
+architecture, **not** a UI screenshot) was removed — no UI surface exists.
+
+Generated or edited mock UI must never be presented as evidence of
+implemented behavior.
