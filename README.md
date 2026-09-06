@@ -67,6 +67,25 @@ The repository carries three execution providers:
 
 See `docs/s1-self-hosted-runner.md` for the self-hosted runner setup.
 
+## System visuals
+
+Real architecture diagrams (repo-specific, source in `.github/assets/architecture/`):
+
+<p align="center">
+  <img src=".github/assets/architecture/system-context.svg" alt="AIE in the Aftergraph ecosystem context" width="90%">
+  <br><em>System context</em>
+</p>
+
+<p align="center">
+  <img src=".github/assets/architecture/architecture.svg" alt="AIE system architecture" width="90%">
+  <br><em>Architecture</em>
+</p>
+
+<p align="center">
+  <img src=".github/assets/architecture/workflow.svg" alt="AIE primary workflow" width="90%">
+  <br><em>Primary workflow</em>
+</p>
+
 ## Local verification
 
 ```bash
