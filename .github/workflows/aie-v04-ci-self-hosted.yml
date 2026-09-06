@@ -41,6 +41,8 @@ jobs:
       AIE_CI_RESULTS: /home/aie-runner/aie-ci-results/${{ github.run_id }}-${{ github.run_attempt }}
       # Pinned dependency SHA: cross-repo tests never float on governance/main.
       GOVERNANCE_SHA: 1deb274cf716f4568b9e4d1af2b4d39e5de07486
+      # Pinned org control-plane snapshot; consumed read-only for manifest validation.
+      CONTROL_PLANE_SHA: c3f35d31a87d637a0243e87566a32925422fb584
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -53,6 +55,7 @@ jobs:
           RUN_NAMESPACE="aie-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.python }}"
           CHECKOUT_SHA="$(git rev-parse HEAD)"
           DEPENDENCY_ROOT="$GITHUB_WORKSPACE/.ci-dependencies"
+          CONTROL_DIR="$GITHUB_WORKSPACE/.ci-dependencies/aftergraph-github"
           TEMP_ROOT="$RUNNER_TEMP/$RUN_NAMESPACE"
           UV_CACHE_DIR="$RUNNER_TEMP/uv-cache-$RUN_NAMESPACE"
           rm -rf "$DEPENDENCY_ROOT" "$TEMP_ROOT" "$UV_CACHE_DIR"
@@ -61,6 +64,7 @@ jobs:
             echo "RUN_NAMESPACE=$RUN_NAMESPACE"
             echo "CHECKOUT_SHA=$CHECKOUT_SHA"
             echo "DEPENDENCY_ROOT=$DEPENDENCY_ROOT"
+            echo "CONTROL_DIR=$CONTROL_DIR"
             echo "TEMP_ROOT=$TEMP_ROOT"
             echo "UV_CACHE_DIR=$UV_CACHE_DIR"
           } >> "$GITHUB_ENV"
@@ -81,6 +85,15 @@ jobs:
         run: |
           echo "GOVERNANCE_DIR=$GITHUB_WORKSPACE/.ci-dependencies/after-graph-governance" >> "$GITHUB_ENV"
           echo "GOVERNANCE_CONTRACTS_PATH=$GITHUB_WORKSPACE/.ci-dependencies/after-graph-governance/docs/contracts/frozen" >> "$GITHUB_ENV"
+
+      - name: Checkout pinned Aftergraph control-plane manifest
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: Aftergraph/.github
+          ref: c3f35d31a87d637a0243e87566a32925422fb584
+          path: .ci-dependencies/aftergraph-github
+          persist-credentials: false
+          clean: true
 
       - name: Ensure uv + Python matrix + venv available
         # Single static binary, user-local, no sudo. Builds the
@@ -115,6 +128,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev,otel]'
 
+      - name: Verify pinned polyrepo dependency manifest
+        run: |
+          set -euo pipefail
+          python "$CONTROL_DIR/scripts/verify_polyrepo_heads.py" \
+            "$CONTROL_DIR/execution/polyrepo-heads.json" \
+            --head "Aftergraph/after-graph-governance=${GOVERNANCE_SHA}"
+
       - name: Verify runner clean-room contract
         run: |
           set -euo pipefail
@@ -133,6 +153,10 @@ jobs:
               "name": "after-graph-governance",
               "path": "${DEPENDENCY_ROOT}/after-graph-governance",
               "sha": "${GOVERNANCE_SHA}"
+            }, {
+              "name": "aftergraph-github",
+              "path": "${DEPENDENCY_ROOT}/aftergraph-github",
+              "sha": "${CONTROL_PLANE_SHA}"
             }],
             "ports": {"isolated": true, "reserved": []},
             "cleanup": {"clean_before": true, "clean_after": true, "on_failure": "retain-evidence-only"}
