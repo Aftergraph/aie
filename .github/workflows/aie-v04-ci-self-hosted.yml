@@ -39,26 +39,48 @@ jobs:
       # prepended to PATH via VIRTUAL_ENV/PATH.
       PATH: /home/aie-runner/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       AIE_CI_RESULTS: /home/aie-runner/aie-ci-results/${{ github.run_id }}-${{ github.run_attempt }}
+      # Pinned dependency SHA: cross-repo tests never float on governance/main.
+      GOVERNANCE_SHA: 1deb274cf716f4568b9e4d1af2b4d39e5de07486
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           clean: true
 
-      # Workspace contract: conformance tests resolve frozen schemas from the
-      # governance sibling (via GOVERNANCE_DIR, fallback to sibling path).
-      - name: Checkout after-graph-governance sibling
+      - name: Prepare clean-room namespaces
+        run: |
+          set -euo pipefail
+          RUN_NAMESPACE="aie-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.python }}"
+          CHECKOUT_SHA="$(git rev-parse HEAD)"
+          DEPENDENCY_ROOT="$GITHUB_WORKSPACE/.ci-dependencies"
+          TEMP_ROOT="$RUNNER_TEMP/$RUN_NAMESPACE"
+          UV_CACHE_DIR="$RUNNER_TEMP/uv-cache-$RUN_NAMESPACE"
+          rm -rf "$DEPENDENCY_ROOT" "$TEMP_ROOT" "$UV_CACHE_DIR"
+          mkdir -p "$DEPENDENCY_ROOT" "$TEMP_ROOT" "$UV_CACHE_DIR" "$AIE_CI_RESULTS"
+          {
+            echo "RUN_NAMESPACE=$RUN_NAMESPACE"
+            echo "CHECKOUT_SHA=$CHECKOUT_SHA"
+            echo "DEPENDENCY_ROOT=$DEPENDENCY_ROOT"
+            echo "TEMP_ROOT=$TEMP_ROOT"
+            echo "UV_CACHE_DIR=$UV_CACHE_DIR"
+          } >> "$GITHUB_ENV"
+
+      # Dependency checkout is isolated from the test root and pinned to an
+      # exact governance SHA. The old workspace-level sibling checkout caused
+      # pytest collection collisions before testpaths was pinned in AIE #37.
+      - name: Checkout pinned after-graph-governance dependency
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: Aftergraph/after-graph-governance
-          ref: main
-          path: after-graph-governance
+          ref: 1deb274cf716f4568b9e4d1af2b4d39e5de07486
+          path: .ci-dependencies/after-graph-governance
           persist-credentials: false
+          clean: true
 
       - name: Export governance contract path
         run: |
-          echo "GOVERNANCE_DIR=$GITHUB_WORKSPACE/after-graph-governance" >> "$GITHUB_ENV"
-          echo "GOVERNANCE_CONTRACTS_PATH=$GITHUB_WORKSPACE/after-graph-governance/docs/contracts/frozen" >> "$GITHUB_ENV"
+          echo "GOVERNANCE_DIR=$GITHUB_WORKSPACE/.ci-dependencies/after-graph-governance" >> "$GITHUB_ENV"
+          echo "GOVERNANCE_CONTRACTS_PATH=$GITHUB_WORKSPACE/.ci-dependencies/after-graph-governance/docs/contracts/frozen" >> "$GITHUB_ENV"
 
       - name: Ensure uv + Python matrix + venv available
         # Single static binary, user-local, no sudo. Builds the
@@ -89,8 +111,34 @@ jobs:
       - name: Install package
         run: |
           set -euo pipefail
+          export UV_CACHE_DIR="$UV_CACHE_DIR"
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev,otel]'
+
+      - name: Verify runner clean-room contract
+        run: |
+          set -euo pipefail
+          cat > "$AIE_CI_RESULTS/runner-clean-room.json" <<JSON
+          {
+            "repo": "${GITHUB_REPOSITORY}",
+            "sha": "${CHECKOUT_SHA}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "attempt": ${GITHUB_RUN_ATTEMPT},
+            "checkout_root": "${GITHUB_WORKSPACE}",
+            "test_root": "${GITHUB_WORKSPACE}/tests",
+            "dependency_root": "${DEPENDENCY_ROOT}",
+            "temp_root": "${TEMP_ROOT}",
+            "cache_namespace": "${RUN_NAMESPACE}",
+            "dependencies": [{
+              "name": "after-graph-governance",
+              "path": "${DEPENDENCY_ROOT}/after-graph-governance",
+              "sha": "${GOVERNANCE_SHA}"
+            }],
+            "ports": {"isolated": true, "reserved": []},
+            "cleanup": {"clean_before": true, "clean_after": true, "on_failure": "retain-evidence-only"}
+          }
+          JSON
+          python "$GOVERNANCE_DIR/scripts/verify_runner_clean_room.py" "$AIE_CI_RESULTS/runner-clean-room.json"
 
       - name: Compile + pytest
         run: |
@@ -106,6 +154,12 @@ jobs:
           mkdir -p "$AIE_CI_RESULTS"
           python -m pip freeze > "$AIE_CI_RESULTS/requirements-${{ matrix.python }}.txt" || true
           python --version > "$AIE_CI_RESULTS/python-${{ matrix.python }}.txt"
+
+      - name: Clean runner namespaces
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf "$DEPENDENCY_ROOT" "$TEMP_ROOT" "$UV_CACHE_DIR"
 
       # Note: the in-house workflow's job result already publishes
       # a commit status under the "test (<py>)" context automatically
