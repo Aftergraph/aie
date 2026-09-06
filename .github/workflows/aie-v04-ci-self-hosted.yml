@@ -44,7 +44,7 @@ jobs:
       # Pinned org control-plane snapshot; consumed read-only for manifest validation.
       CONTROL_PLANE_SHA: c3f35d31a87d637a0243e87566a32925422fb584
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           clean: true
@@ -73,7 +73,7 @@ jobs:
       # exact governance SHA. The old workspace-level sibling checkout caused
       # pytest collection collisions before testpaths was pinned in AIE #37.
       - name: Checkout pinned after-graph-governance dependency
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Aftergraph/after-graph-governance
           ref: 1deb274cf716f4568b9e4d1af2b4d39e5de07486
@@ -87,7 +87,7 @@ jobs:
           echo "GOVERNANCE_CONTRACTS_PATH=$GITHUB_WORKSPACE/.ci-dependencies/after-graph-governance/docs/contracts/frozen" >> "$GITHUB_ENV"
 
       - name: Checkout pinned Aftergraph control-plane manifest
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Aftergraph/.github
           ref: c3f35d31a87d637a0243e87566a32925422fb584
