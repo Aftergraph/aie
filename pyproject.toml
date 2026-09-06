@@ -30,6 +30,15 @@ otel = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.pytest.ini_options]
+# Pin discovery to the tests/ package so the self-hosted CI workspace
+# (which contains an after-graph-governance sibling checkout with its own
+# scripts/test_verify_brand_assets.py) is never scanned. Without this,
+# pytest recurses into the sibling and raises "import file mismatch" for
+# duplicate test basenames.
+testpaths = ["tests"]
+norecursedirs = ["after-graph-governance", "dist", "build", "*.egg-info"]
+
 [project.urls]
 Repository = "https://github.com/JonasAbde/aie"
 Issues = "https://github.com/JonasAbde/aie/issues"
