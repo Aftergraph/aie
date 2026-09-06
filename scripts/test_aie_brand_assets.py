@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Tests for verify_brand_assets.py — run from repo root: python3 -m pytest scripts/test_verify_brand_assets.py
-Self-contained (no pytest dependency: run with python3 scripts/test_verify_brand_assets.py)."""
+"""Tests for verify_brand_assets.py — run from repo root: python3 -m pytest scripts/test_aie_brand_assets.py
+Self-contained (no pytest dependency: run with python3 scripts/test_aie_brand_assets.py)."""
 import json, subprocess, sys, tempfile, unittest
 from pathlib import Path
 
