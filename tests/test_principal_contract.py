@@ -93,3 +93,12 @@ def test_projection_rejects_noncanonical_platform_ids(principal_id, tenant_id):
             principal_id=principal_id,
             tenant_id=tenant_id,
         )
+
+
+def test_principal_contract_helpers_are_exported_from_package():
+    import aie_runtime
+
+    assert aie_runtime.canonical_principal_type is _adapter().canonical_principal_type
+    assert aie_runtime.principal_to_contract is _adapter().principal_to_contract
+    assert "canonical_principal_type" in aie_runtime.__all__
+    assert "principal_to_contract" in aie_runtime.__all__
