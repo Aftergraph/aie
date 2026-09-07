@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from aie_runtime.s1_interop import build_s11_report
@@ -62,7 +63,10 @@ def test_external_ci_workflow_is_read_only_pinned_and_uploads_evidence():
     assert "contents: read" in workflow
     assert "timeout-minutes:" in workflow
     assert "interop/s1/scripts/ci_external_s1.sh" in workflow
-    assert "actions/upload-artifact@v4" in workflow
+    # ponytail: accepts tag or SHA-pin with tag comment; both prove the same pinned action.
+    assert "actions/upload-artifact@v4" in workflow or re.search(
+        r"actions/upload-artifact@[0-9a-f]{40}\s+#\s*v4", workflow
+    )
     assert "AIE_S1_1_PROMOTION.json" in workflow
     assert "if-no-files-found: error" in workflow
     assert "permissions:\n  contents: read" in workflow
