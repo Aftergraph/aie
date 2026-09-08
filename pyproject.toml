@@ -20,7 +20,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-json-report>=1.5"]
+dev = [
+  "pytest>=8",
+  "pytest-json-report>=1.5",
+  "opentelemetry-api>=1.42",
+  "opentelemetry-sdk>=1.42",
+  "opentelemetry-exporter-otlp-proto-http>=1.42",
+]
 otel = [
   "opentelemetry-api>=1.42",
   "opentelemetry-sdk>=1.42",
