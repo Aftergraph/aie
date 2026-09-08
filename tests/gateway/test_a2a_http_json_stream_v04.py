@@ -123,7 +123,11 @@ def test_message_stream_forwards_first_event_before_terminal_outcome(tmp_path):
         assert "text/event-stream" in response.getheader("Content-Type")
         assert response.readline() == b'data: {"phase":"first"}\n'
         assert response.readline() == b"\n"
-        assert SSEUpstream.first_sent.is_set()
+        # The upstream sets `first_sent` after wfile.flush(); under runner
+        # load the thread can be descheduled between the two, so the event
+        # may briefly lag the bytes the client already proved arrived.
+        # Delivery (not scheduler state) is the contract under test.
+        assert SSEUpstream.first_sent.wait(timeout=5)
         in_flight = gateway.store.get_outcome("stream-1")
         assert in_flight is not None
         assert in_flight["status"] == "in-flight"
