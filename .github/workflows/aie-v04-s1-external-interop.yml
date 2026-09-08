@@ -46,21 +46,10 @@ jobs:
           bash -n interop/s1/scripts/*.sh
           python -m compileall -q src interop/s1
 
-      - name: Diagnose editable install visibility
-        run: |
-          python -m pip show aie-reference-runtime | sed -n '1,12p'
-          python - <<'EOF'
-          import aie_runtime, sysconfig, site, pathlib
-          print('aie_runtime at:', pathlib.Path(aie_runtime.__file__).parent)
-          print('site-packages:', sysconfig.get_paths()['purelib'])
-          print('user site:', site.getusersitepackages())
-          print('ENABLE_USER_SITE:', site.ENABLE_USER_SITE)
-          EOF
-          sudo runuser -u aie-s1-server -- /usr/bin/env python3 -c "import sys; print('lab python:', sys.executable); import site; print('lab user site:', site.getusersitepackages(), site.ENABLE_USER_SITE)"
-          sudo runuser -u aie-s1-server -- bash -lc 'ls -la "$HOME/.local/lib/python3.13/site-packages" 2>/dev/null | head -n 3; python3 -c "import aie_runtime; print(1)" 2>&1 | head -n 2'
-
       - name: Make checkout traversable for lab users
-        run: sudo chmod -R a+rX "$GITHUB_WORKSPACE"
+        run: |
+          sudo chmod a+rX /home/runner /home/runner/work /home/runner/work/aie
+          sudo chmod -R a+rX "$GITHUB_WORKSPACE"
 
       - name: Live SPIRE + official MCP three-leg conformance
         run: sudo --preserve-env=AIE_S1_PYTHON,AIE_S1_UV,AIE_S1_NPX,AIE_S1_STATE,AIE_S1_RESULTS,AIE_S1_DEPS,GITHUB_ACTIONS,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_SHA,GITHUB_WORKFLOW_REF bash interop/s1/scripts/ci_external_s1.sh
