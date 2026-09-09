@@ -254,8 +254,8 @@ class SQLiteGatewayStore:
         with self._connect() as con:
             rows = [
                 {
-                    "lease_id": row["lease_id"],
-                    "revoked_at": row["revoked_at"],
+                    "lease_id": str(row["lease_id"]),
+                    "revoked_at": str(row["revoked_at"]),
                     "source_gateway": row["source_gateway"],
                 }
                 for row in con.execute(

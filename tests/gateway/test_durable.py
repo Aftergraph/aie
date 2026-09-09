@@ -1,3 +1,5 @@
+import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -74,9 +76,6 @@ def test_outcome_can_transition_from_in_flight_to_terminal(tmp_path):
     assert store.get_outcome("stream-1")["status"] == "admitted"
 
 
-import hashlib
-import json
-
 
 def _expected_digest(rows: list[dict]) -> str:
     payload = json.dumps(
@@ -110,14 +109,11 @@ def test_revocation_state_sha256_order_independent(tmp_path):
 def test_revocation_state_sha256_mutation_changes_digest(tmp_path):
     store = make_store(tmp_path)
     d0 = store.revocation_state_sha256()
-    store.revoke("lease-1", source_gateway="gw-x")
+    fixed_ts = "2026-09-09T12:00:00+00:00"
+    store.revoke("lease-1", revoked_at=fixed_ts, source_gateway="gw-x")
     d1 = store.revocation_state_sha256()
     assert d0 != d1
-    # We can't predict revoked_at exactly, so verify structure differently:
-    # Just confirm the new digest matches a fresh computation from DB state
-    with store._connect() as con:
-        rows = [
-            {"lease_id": r["lease_id"], "revoked_at": r["revoked_at"], "source_gateway": r["source_gateway"]}
-            for r in con.execute("SELECT lease_id, revoked_at, source_gateway FROM revocations ORDER BY lease_id ASC").fetchall()
-        ]
-    assert d1 == _expected_digest(rows)
+    expected = _expected_digest([
+        {"lease_id": "lease-1", "revoked_at": fixed_ts, "source_gateway": "gw-x"}
+    ])
+    assert d1 == expected
