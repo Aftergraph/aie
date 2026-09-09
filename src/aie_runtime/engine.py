@@ -219,13 +219,15 @@ class AdmissionEngine:
         for child_prefix in resource_prefixes:
             if not any(child_prefix.startswith(parent_prefix) for parent_prefix in parent.resource_prefixes):
                 raise AIEError("AIE-DELEG-001")
-        # HC4: Budget ledger enforcement for delegation chains
-        if self.budget_ledger:
-            if budget > self.budget_ledger.available:
-                raise AIEError("AIE-BUDGET-001")
-        else:
-            if budget < 0 or budget > parent.budget_remaining:
-                raise AIEError("AIE-BUDGET-001")
+
+        # D1-BUDGET-003 / HC4: these are independent conservation boundaries.
+        # A shared mission ledger constrains global spend, but it must never
+        # replace attenuation of the parent lease's distributable budget.
+        if budget < 0 or budget > parent.budget_remaining:
+            raise AIEError("AIE-BUDGET-001")
+        if self.budget_ledger and budget > self.budget_ledger.available:
+            raise AIEError("AIE-BUDGET-001")
+
         if child_principal_id not in self.state.principals:
             raise AIEError("AIE-AUTH-001")
         parent.budget_remaining -= budget
