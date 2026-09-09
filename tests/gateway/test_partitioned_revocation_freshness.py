@@ -21,7 +21,7 @@ def test_gateway_fails_closed_when_revocation_view_is_stale(tmp_path) -> None:
     )
 
     assert decision.status == "denied"
-    assert decision.error_code == "AIE-AUTH-005"
+    assert decision.error_code == "AIE-FRESH-001"
     assert store.remaining_budget("lease:refund") == 10.0
     assert store.reservation_state("mcp-stale-revocation-view") is None
 
