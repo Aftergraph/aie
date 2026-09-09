@@ -68,6 +68,7 @@ class AIEGateway:
         evidence_exporter: Any | None = None,
         authority_bindings: Mapping[str, tuple[str, str]] | None = None,
         protocol_passthrough_on_parse_error: bool = False,
+        revocation_freshness_check: Callable[[], bool] | None = None,
     ):
         self.state = state
         self.store = store
@@ -77,6 +78,7 @@ class AIEGateway:
         self.evidence_exporter = evidence_exporter
         self.authority_bindings = dict(authority_bindings or {})
         self.protocol_passthrough_on_parse_error = bool(protocol_passthrough_on_parse_error)
+        self.revocation_freshness_check = revocation_freshness_check
         for lease in self.state.leases.values():
             self.store.initialize_budget(lease.id, float(lease.budget_remaining))
 
@@ -125,6 +127,26 @@ class AIEGateway:
             parent_id = current.parent_lease_id
             current = self.state.leases.get(parent_id) if parent_id else None
         return False
+
+    def _require_revocation_freshness(self) -> None:
+        """Fail closed when a configured revocation view cannot prove freshness.
+
+        A push-only revocation channel cannot distinguish "no new revocations"
+        from "partitioned from the authority source". Deployments that require
+        partition-safe authority therefore provide an independent freshness
+        detector. Detector absence preserves the existing gateway contract;
+        detector failure or any non-True result maps to the registry's
+        AIE-FRESH-001 fail-closed outcome.
+        """
+        check = self.revocation_freshness_check
+        if check is None:
+            return
+        try:
+            fresh = check()
+        except Exception as exc:
+            raise AIEError("AIE-FRESH-001") from exc
+        if fresh is not True:
+            raise AIEError("AIE-FRESH-001")
 
     def _resolve_authority(
         self,
@@ -246,6 +268,7 @@ class AIEGateway:
                 action=action, headers=headers, identity=identity
             )
             lease_id = lease.id
+            self._require_revocation_freshness()
             self.store.reserve_budget(lease.id, action.action_id, budget_cost)
             reservation_made = True
             decision_input = {
@@ -335,6 +358,7 @@ class AIEGateway:
                 action=action, headers=headers, identity=identity
             )
             lease_id = lease.id
+            self._require_revocation_freshness()
             self.store.reserve_budget(lease.id, action.action_id, budget_cost)
             reservation_made = True
             decision_input = {
