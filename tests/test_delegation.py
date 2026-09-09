@@ -4,7 +4,7 @@ import pytest
 
 from aie_runtime.engine import AdmissionEngine, AuthorityLease, Mission, Principal
 from aie_runtime.errors import AIEError
-from aie_runtime.store import InMemoryState
+from aie_runtime.store import BudgetLedger, InMemoryState
 
 NOW = datetime(2026, 9, 3, tzinfo=timezone.utc)
 
@@ -87,6 +87,47 @@ def test_d1_cannot_delegate_more_budget_than_parent_has():
             ttl=timedelta(minutes=10),
         )
     assert exc.value.code == "AIE-BUDGET-001"
+
+
+def test_d1_parallel_children_cannot_overallocate_parent_when_ledger_attached():
+    """D1-BUDGET-003 applies even when a shared mission ledger is attached.
+
+    The ledger constrains mission-wide spend, while the parent lease must still
+    conserve the authority budget it can distribute to descendants. Attaching a
+    ledger must not disable the parent-budget attenuation check.
+    """
+    e = engine_with_parent()
+    e.budget_ledger = BudgetLedger(budget_usd=10)
+    e.state.principals["agent:child-2"] = Principal(
+        "agent:child-2",
+        "agent",
+        "spiffe://example.ai/agents/child-2",
+    )
+
+    e.delegate(
+        parent_lease_id="lease:parent",
+        child_lease_id="lease:child",
+        child_principal_id="agent:child",
+        capabilities={"repo.read"},
+        resource_prefixes=("repo://acme/service-a",),
+        budget=6,
+        ttl=timedelta(minutes=10),
+    )
+
+    with pytest.raises(AIEError) as exc:
+        e.delegate(
+            parent_lease_id="lease:parent",
+            child_lease_id="lease:child-2",
+            child_principal_id="agent:child-2",
+            capabilities={"repo.read"},
+            resource_prefixes=("repo://acme/service-b",),
+            budget=6,
+            ttl=timedelta(minutes=10),
+        )
+
+    assert exc.value.code == "AIE-BUDGET-001"
+    assert e.state.leases["lease:parent"].budget_remaining == 4
+    assert "lease:child-2" not in e.state.leases
 
 
 def test_d1_parent_revocation_propagates_to_descendants():
