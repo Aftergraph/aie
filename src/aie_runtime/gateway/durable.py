@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -241,6 +242,31 @@ class SQLiteGatewayStore:
                 "INSERT INTO evidence(event_json,created_at) VALUES(?,?)",
                 (json.dumps(event, sort_keys=True, separators=(",", ":")), now),
             )
+
+
+    def revocation_state_sha256(self) -> str:
+        """Canonical SHA-256 digest of the complete revocation state.
+
+        Order-independent: rows sorted by lease_id ASC.
+        Deterministic: identical state always produces identical digest.
+        Derived from durable SQLite truth — no cache, no clock.
+        """
+        with self._connect() as con:
+            rows = [
+                {
+                    "lease_id": str(row["lease_id"]),
+                    "revoked_at": str(row["revoked_at"]),
+                    "source_gateway": row["source_gateway"],
+                }
+                for row in con.execute(
+                    "SELECT lease_id, revoked_at, source_gateway "
+                    "FROM revocations ORDER BY lease_id ASC"
+                ).fetchall()
+            ]
+        payload = json.dumps(
+            rows, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
 
     def list_evidence(self, *, limit: int = 1000) -> list[dict[str, Any]]:
         with self._connect() as con:

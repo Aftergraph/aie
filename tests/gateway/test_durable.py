@@ -1,3 +1,5 @@
+import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -72,3 +74,46 @@ def test_outcome_can_transition_from_in_flight_to_terminal(tmp_path):
     store.put_outcome("stream-1", status="in-flight", protocol="a2a", error_code=None)
     store.put_outcome("stream-1", status="admitted", protocol="a2a", error_code=None)
     assert store.get_outcome("stream-1")["status"] == "admitted"
+
+
+
+def _expected_digest(rows: list[dict]) -> str:
+    payload = json.dumps(
+        rows, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def test_revocation_state_sha256_empty(tmp_path):
+    store = make_store(tmp_path)
+    digest = store.revocation_state_sha256()
+    assert digest == _expected_digest([])
+    assert isinstance(digest, str)
+    assert len(digest) == 64
+    assert digest == digest.lower()
+
+
+def test_revocation_state_sha256_order_independent(tmp_path):
+    (tmp_path / "a").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "b").mkdir(parents=True, exist_ok=True)
+    store_a = make_store(tmp_path / "a")
+    store_b = make_store(tmp_path / "b")
+    # Insert in different orders
+    store_a.revoke("lease-1", revoked_at="2026-09-09T00:00:00+00:00", source_gateway="gw-a")
+    store_a.revoke("lease-2", revoked_at="2026-09-09T00:00:01+00:00", source_gateway="gw-b")
+    store_b.revoke("lease-2", revoked_at="2026-09-09T00:00:01+00:00", source_gateway="gw-b")
+    store_b.revoke("lease-1", revoked_at="2026-09-09T00:00:00+00:00", source_gateway="gw-a")
+    assert store_a.revocation_state_sha256() == store_b.revocation_state_sha256()
+
+
+def test_revocation_state_sha256_mutation_changes_digest(tmp_path):
+    store = make_store(tmp_path)
+    d0 = store.revocation_state_sha256()
+    fixed_ts = "2026-09-09T12:00:00+00:00"
+    store.revoke("lease-1", revoked_at=fixed_ts, source_gateway="gw-x")
+    d1 = store.revocation_state_sha256()
+    assert d0 != d1
+    expected = _expected_digest([
+        {"lease_id": "lease-1", "revoked_at": fixed_ts, "source_gateway": "gw-x"}
+    ])
+    assert d1 == expected
