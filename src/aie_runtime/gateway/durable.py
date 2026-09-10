@@ -249,6 +249,8 @@ class SQLiteGatewayStore:
 
         Order-independent: rows sorted by lease_id ASC.
         Deterministic: identical state always produces identical digest.
+        Source_gateway metadata is intentionally excluded — only lease_id and
+        revoked_at participate in the digest per SDD spec section 6.2.
         Derived from durable SQLite truth — no cache, no clock.
         """
         with self._connect() as con:
@@ -256,11 +258,9 @@ class SQLiteGatewayStore:
                 {
                     "lease_id": str(row["lease_id"]),
                     "revoked_at": str(row["revoked_at"]),
-                    "source_gateway": row["source_gateway"],
                 }
                 for row in con.execute(
-                    "SELECT lease_id, revoked_at, source_gateway "
-                    "FROM revocations ORDER BY lease_id ASC"
+                    "SELECT lease_id, revoked_at FROM revocations ORDER BY lease_id ASC"
                 ).fetchall()
             ]
         payload = json.dumps(

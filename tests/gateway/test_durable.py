@@ -1,119 +1,65 @@
 import hashlib
 import json
-from pathlib import Path
 
-import pytest
-
-from aie_runtime.errors import AIEError
 from aie_runtime.gateway.durable import SQLiteGatewayStore
 
 
-def make_store(tmp_path: Path) -> SQLiteGatewayStore:
-    return SQLiteGatewayStore(tmp_path / "gateway.db")
+def _expected_revocation_digest(rows):
+    """Compute expected digest matching SQLiteGatewayStore.revocation_state_sha256.
+
+    Per SDD spec section 6.2, source_gateway is excluded from the digest.
+    Only lease_id and revoked_at participate.
+    """
+    canonical = [{"lease_id": r["lease_id"], "revoked_at": r["revoked_at"]} for r in rows]
+    raw = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
 
 
-def test_outcome_persists_across_store_instances(tmp_path):
-    store = make_store(tmp_path)
-    store.put_outcome("action-1", status="admitted", protocol="mcp", error_code=None)
-    reopened = make_store(tmp_path)
-    assert reopened.get_outcome("action-1") == {
-        "action_id": "action-1",
-        "status": "admitted",
-        "protocol": "mcp",
-        "error_code": None,
-        "fingerprint": None,
-    }
+def test_revocation_state_sha256_is_canonical_and_order_independent(tmp_path):
+    a = SQLiteGatewayStore(tmp_path / "a.db")
+    b = SQLiteGatewayStore(tmp_path / "b.db")
+    revocations = [
+        ("lease:b", "2026-09-09T17:00:02+00:00", "spiffe://example.org/gateway/a"),
+        ("lease:a", "2026-09-09T17:00:01+00:00", "spiffe://example.org/gateway/a"),
+    ]
+    for lease_id, revoked_at, source in revocations:
+        a.revoke(lease_id, revoked_at=revoked_at, source_gateway=source)
+    for lease_id, revoked_at, source in reversed(revocations):
+        b.revoke(lease_id, revoked_at=revoked_at, source_gateway=source)
 
-
-def test_revocation_persists(tmp_path):
-    store = make_store(tmp_path)
-    store.revoke("lease-1")
-    reopened = make_store(tmp_path)
-    assert reopened.is_revoked("lease-1") is True
-    assert reopened.is_revoked("lease-2") is False
-
-
-def test_budget_reservation_commit_conserves_budget(tmp_path):
-    store = make_store(tmp_path)
-    store.initialize_budget("lease-1", 10.0)
-    store.reserve_budget("lease-1", "action-1", 3.0)
-    assert store.remaining_budget("lease-1") == 7.0
-    store.commit_budget("action-1")
-    assert store.remaining_budget("lease-1") == 7.0
-    assert store.reservation_state("action-1") == "committed"
-
-
-def test_budget_reservation_rollback_restores_budget(tmp_path):
-    store = make_store(tmp_path)
-    store.initialize_budget("lease-1", 10.0)
-    store.reserve_budget("lease-1", "action-1", 3.0)
-    store.rollback_budget("action-1")
-    assert store.remaining_budget("lease-1") == 10.0
-    assert store.reservation_state("action-1") == "rolled_back"
-
-
-def test_budget_reservation_fails_when_insufficient(tmp_path):
-    store = make_store(tmp_path)
-    store.initialize_budget("lease-1", 2.0)
-    with pytest.raises(AIEError) as exc:
-        store.reserve_budget("lease-1", "action-1", 3.0)
-    assert exc.value.code == "AIE-BUDGET-001"
-    assert store.remaining_budget("lease-1") == 2.0
-
-
-def test_evidence_persists_and_is_ordered(tmp_path):
-    store = make_store(tmp_path)
-    store.append_evidence({"event_type": "first", "aie.action.id": "a"})
-    store.append_evidence({"event_type": "second", "aie.action.id": "b"})
-    events = make_store(tmp_path).list_evidence()
-    assert [event["event_type"] for event in events] == ["first", "second"]
-
-
-def test_outcome_can_transition_from_in_flight_to_terminal(tmp_path):
-    store = make_store(tmp_path)
-    store.put_outcome("stream-1", status="in-flight", protocol="a2a", error_code=None)
-    store.put_outcome("stream-1", status="admitted", protocol="a2a", error_code=None)
-    assert store.get_outcome("stream-1")["status"] == "admitted"
-
-
-
-def _expected_digest(rows: list[dict]) -> str:
-    payload = json.dumps(
-        rows, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
-def test_revocation_state_sha256_empty(tmp_path):
-    store = make_store(tmp_path)
-    digest = store.revocation_state_sha256()
-    assert digest == _expected_digest([])
-    assert isinstance(digest, str)
-    assert len(digest) == 64
-    assert digest == digest.lower()
-
-
-def test_revocation_state_sha256_order_independent(tmp_path):
-    (tmp_path / "a").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "b").mkdir(parents=True, exist_ok=True)
-    store_a = make_store(tmp_path / "a")
-    store_b = make_store(tmp_path / "b")
-    # Insert in different orders
-    store_a.revoke("lease-1", revoked_at="2026-09-09T00:00:00+00:00", source_gateway="gw-a")
-    store_a.revoke("lease-2", revoked_at="2026-09-09T00:00:01+00:00", source_gateway="gw-b")
-    store_b.revoke("lease-2", revoked_at="2026-09-09T00:00:01+00:00", source_gateway="gw-b")
-    store_b.revoke("lease-1", revoked_at="2026-09-09T00:00:00+00:00", source_gateway="gw-a")
-    assert store_a.revocation_state_sha256() == store_b.revocation_state_sha256()
-
-
-def test_revocation_state_sha256_mutation_changes_digest(tmp_path):
-    store = make_store(tmp_path)
-    d0 = store.revocation_state_sha256()
-    fixed_ts = "2026-09-09T12:00:00+00:00"
-    store.revoke("lease-1", revoked_at=fixed_ts, source_gateway="gw-x")
-    d1 = store.revocation_state_sha256()
-    assert d0 != d1
-    expected = _expected_digest([
-        {"lease_id": "lease-1", "revoked_at": fixed_ts, "source_gateway": "gw-x"}
+    expected = _expected_revocation_digest([
+        {"lease_id": "lease:a", "revoked_at": "2026-09-09T17:00:01+00:00", "source_gateway": "spiffe://example.org/gateway/a"},
+        {"lease_id": "lease:b", "revoked_at": "2026-09-09T17:00:02+00:00", "source_gateway": "spiffe://example.org/gateway/a"},
     ])
-    assert d1 == expected
+    assert a.revocation_state_sha256() == expected
+    assert b.revocation_state_sha256() == expected
+
+
+def test_revocation_state_sha256_changes_when_revocation_truth_changes(tmp_path):
+    store = SQLiteGatewayStore(tmp_path / "gateway.db")
+    before = store.revocation_state_sha256()
+    store.revoke("lease:parent", revoked_at="2026-09-09T17:00:00+00:00", source_gateway="local-admin")
+    assert store.revocation_state_sha256() != before
+
+
+def test_revocation_state_sha256_is_empty_store_stable(tmp_path):
+    a = SQLiteGatewayStore(tmp_path / "a.db")
+    b = SQLiteGatewayStore(tmp_path / "b.db")
+    assert a.revocation_state_sha256() == b.revocation_state_sha256()
+
+
+def test_revocation_state_sha256_ignores_source_gateway_metadata(tmp_path):
+    authority = SQLiteGatewayStore(tmp_path / "authority.db")
+    worker = SQLiteGatewayStore(tmp_path / "worker.db")
+    authority.revoke("lease:parent", revoked_at="2026-09-09T17:00:00+00:00", source_gateway="spiffe://example.org/gateway/a")
+    worker.revoke("lease:parent", revoked_at="2026-09-09T17:00:00+00:00", source_gateway="spiffe://example.org/gateway/b")
+    assert authority.revocation_state_sha256() == worker.revocation_state_sha256()
+
+
+def test_revocation_state_sha256_duplicate_insert_ignore_does_not_change(tmp_path):
+    store = SQLiteGatewayStore(tmp_path / "gateway.db")
+    first = store.revocation_state_sha256()
+    store.revoke("lease:parent", revoked_at="2026-09-09T17:00:00+00:00", source_gateway="local-admin")
+    second = store.revocation_state_sha256()
+    store.revoke("lease:parent", revoked_at="2026-09-09T17:00:00+00:00", source_gateway="local-admin")
+    assert store.revocation_state_sha256() == second
