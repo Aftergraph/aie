@@ -13,4 +13,4 @@ permissions:
   pull-requests: read
 jobs:
   sentinel-gate:
-    uses: Aftergraph/.github/.github/workflows/agent-review.yml@0e74974228cf0181b6b77b98b8476c448908d6d4
+    uses: Aftergraph/.github/.github/workflows/agent-review.yml@5ea9a7409b09092fda28f1fac3a59719b5cd51f4

@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CALLER = ROOT / ".github" / "workflows" / "sentinel-gate.yml"
-CENTRAL_WORKFLOW_SHA = "8240ed40c376240795b324d46520d13ca8023e04"
+CENTRAL_WORKFLOW_SHA = "5ea9a7409b09092fda28f1fac3a59719b5cd51f4"
 
 
 def test_sentinel_caller_pins_path_fixed_central_workflow() -> None:
