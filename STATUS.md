@@ -84,3 +84,4 @@ GitHub Actions artifact storage quota is also exhausted on the `JonasAbde` accou
 - `evidence/s1.1/registry/decision_log.md` — decisions made during the S1.1 promotion effort
 - `evidence/s1.1/registry/experiment_registry.md` — experiments run and their results
 - `evidence/s1.1/registry/open_questions.md` — open questions (all resolved)
+- `evidence/s1.1/registry/prior_art_source_ledger.md` — prior-art and novelty-boundary posture after Meta Muse (2026-09)

@@ -18,6 +18,17 @@
 
 **AIE is an experimental standards and reference-implementation project for portable authority, delegation, lifecycle, budget, revocation, and evidence semantics across agent systems.**
 
+AIE's novelty is deliberately narrow. Broad mechanisms such as scoped permissions, external authorization, revocation, least privilege, durable agent control, and human approvals are known/existing mechanism classes across vendor control planes and agent frameworks. They are not, by themselves, AIE research claims. AIE's preserved research boundary is narrower and portable:
+
+- portable authority/delegation semantics;
+- monotonic attenuation/conservation;
+- budget inheritance/conservation;
+- governed topology mutation;
+- cross-runtime conformance/interoperability;
+- portable evidence/settlement semantics.
+
+After Meta's September 2026 Muse release, Muse is treated as external architectural convergence for scoped permissions and external control, not as empirical reproduction of AIE results (see `evidence/s1.1/registry/prior_art_source_ledger.md` and `spec/AIE_Draft_0.3_Prior_Art_Novalty_Boundary.md`). No AIE text implies Meta independently validated AIE results.
+
 The project explores the layer above coordination topology and runtime control:
 
 > **Graph defines coordination. Control enforces execution. Institution resolves legitimate authority.**
@@ -69,6 +80,10 @@ The repository carries three execution providers:
 3. **Works control plane** `works.yml` — per-push verification through the avc-core pool on the VDS, published as a `works/aie` commit status. See PR #27 for context.
 
 See `docs/s1-self-hosted-runner.md` for the self-hosted runner setup.
+
+## Prior-art and novelty posture
+
+AIE's novelty is deliberately narrow. Broad mechanisms such as scoped permissions, external authorization, revocation, least privilege, durable agent control, and human approvals are known/existing mechanism classes and are not promoted as AIE research claims. AIE's preserved research boundary is narrower and portable. See `evidence/s1.1/registry/prior_art_source_ledger.md` and `spec/AIE_Draft_0.3_Prior_Art_Novalty_Boundary.md`.
 
 ## System visuals
 

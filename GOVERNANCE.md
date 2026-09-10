@@ -22,3 +22,7 @@ AIE is currently an **experimental, maintainer-led standards project**. Governan
 ## Conflict and appeals
 
 Technical disagreements should be recorded in issues with competing evidence and explicit trade-offs. The maintainer decides during the experimental phase. A multi-maintainer governance model is a prerequisite before Candidate Standard maturity.
+
+## Prior-art and novelty posture
+
+AIE's novelty is deliberately narrow. Broad mechanisms such as scoped permissions, external authorization, revocation, least privilege, durable agent control, and human approvals are known/existing mechanism classes and are not promoted as AIE research claims. AIE's preserved research boundary is narrower and portable. After Meta's September 2026 Muse release, Muse is treated as external architectural convergence for scoped permissions and external control, not as empirical reproduction of AIE results. See `evidence/s1.1/registry/prior_art_source_ledger.md` and `spec/AIE_Draft_0.3_Prior_Art_Novalty_Boundary.md`. No AIE text implies Meta independently validated AIE results.
