@@ -5,7 +5,9 @@ Plan: docs/superpowers/plans/2026-09-09-revocation-freshness-watermark.md Task 2
 """
 from __future__ import annotations
 
+import math
 import re
+import threading
 import time
 from collections.abc import Callable
 
@@ -30,15 +32,24 @@ class RevocationFreshnessMonitor:
         local_revocation_state_sha256: Callable[[], str],
         monotonic_clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        if freshness_ttl <= 0:
-            raise ValueError("freshness_ttl must be > 0")
+        ttl = float(freshness_ttl)
+        if not math.isfinite(ttl) or ttl <= 0:
+            raise ValueError("freshness_ttl must be finite and > 0")
         self.expected_source_gateway = expected_source_gateway
-        self.freshness_ttl = float(freshness_ttl)
+        self.freshness_ttl = ttl
         self.local_revocation_state_sha256 = local_revocation_state_sha256
         self.monotonic_clock = monotonic_clock
         self.last_sequence: int | None = None
         self.last_confirmed_monotonic: float | None = None
         self.authority_revocation_state_sha256: str | None = None
+        self._lock = threading.RLock()
+
+    def _read_monotonic(self) -> float | None:
+        try:
+            current = float(self.monotonic_clock())
+        except Exception:  # noqa: BLE001 - external clock must fail closed
+            return None
+        return current if math.isfinite(current) else None
 
     def observe(
         self,
@@ -61,46 +72,64 @@ class RevocationFreshnessMonitor:
             or _SHA256_RE.fullmatch(revocation_state_sha256) is None
         ):
             return False
-        if self.last_sequence is not None and sequence <= self.last_sequence:
-            return False
-        self.last_sequence = sequence
-        self.last_confirmed_monotonic = float(self.monotonic_clock())
-        self.authority_revocation_state_sha256 = revocation_state_sha256
-        return True
+
+        with self._lock:
+            if self.last_sequence is not None and sequence <= self.last_sequence:
+                return False
+            current = self._read_monotonic()
+            if current is None:
+                return False
+            self.last_sequence = sequence
+            self.last_confirmed_monotonic = current
+            self.authority_revocation_state_sha256 = revocation_state_sha256
+            return True
 
     def is_fresh(self) -> bool:
         """Determine whether the current revocation view is fresh.
 
         Requires confirmed state, age within TTL, and digest equality.
-        Any exception from the local digest callable results in stale.
+        Any exception or non-finite monotonic reading results in stale.
         """
-        if (
-            self.last_confirmed_monotonic is None
-            or self.authority_revocation_state_sha256 is None
-        ):
-            return False
-        age = float(self.monotonic_clock()) - self.last_confirmed_monotonic
-        if age < 0 or age > self.freshness_ttl:
-            return False
-        try:
-            return (
-                self.local_revocation_state_sha256()
-                == self.authority_revocation_state_sha256
-            )
-        except Exception:  # noqa: BLE001 — intentional broad catch for user-supplied callable
-            return False
+        with self._lock:
+            if (
+                self.last_confirmed_monotonic is None
+                or self.authority_revocation_state_sha256 is None
+            ):
+                return False
+
+            current = self._read_monotonic()
+            if current is None:
+                return False
+            age = current - self.last_confirmed_monotonic
+            if age < 0 or age > self.freshness_ttl:
+                return False
+
+            try:
+                local_digest = self.local_revocation_state_sha256()
+            except Exception:  # noqa: BLE001 - external digest provider must fail closed
+                return False
+
+            current_after_digest = self._read_monotonic()
+            if current_after_digest is None:
+                return False
+            age_after_digest = current_after_digest - self.last_confirmed_monotonic
+            if age_after_digest < 0 or age_after_digest > self.freshness_ttl:
+                return False
+
+            return local_digest == self.authority_revocation_state_sha256
 
     def status(self) -> dict[str, object]:
         """Return observable monitor state for diagnostics."""
-        current = float(self.monotonic_clock())
-        age = (
-            None
-            if self.last_confirmed_monotonic is None
-            else current - self.last_confirmed_monotonic
-        )
-        return {
-            "fresh": self.is_fresh(),
-            "last_sequence": self.last_sequence,
-            "age_seconds": age,
-            "authority_revocation_state_sha256": self.authority_revocation_state_sha256,
-        }
+        with self._lock:
+            current = self._read_monotonic()
+            age = (
+                None
+                if self.last_confirmed_monotonic is None or current is None
+                else current - self.last_confirmed_monotonic
+            )
+            return {
+                "fresh": self.is_fresh(),
+                "last_sequence": self.last_sequence,
+                "age_seconds": age,
+                "authority_revocation_state_sha256": self.authority_revocation_state_sha256,
+            }
