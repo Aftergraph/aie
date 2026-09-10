@@ -1,5 +1,15 @@
 # Changelog
 
+## prior-art posture — 2026-09-10
+
+- add `evidence/s1.1/registry/prior_art_source_ledger.md` with dated Meta Muse/Muse Code/Muse Spark 1.3 prior art and explicit scope
+- mark broad claims around scoped permissions, external authorization, revocation, least privilege, durable agent control, and human approvals as known/existing mechanism classes where appropriate
+- preserve the narrower AIE research boundary around portable authority/delegation semantics, monotonic attenuation/conservation, budget inheritance/conservation, governed topology mutation, cross-runtime conformance/interoperability, and portable evidence/settlement semantics
+- add comparison note distinguishing vendor vertical control systems from portable institution semantics
+- add falsifier for "AIE is just vendor permissioning with new terminology"
+- update README, STATUS, GOVERNANCE, PUBLIC-RELEASE-GATE, and spec with maturity-honest novelty-boundary wording
+- no text implies Meta independently validated AIE results; conformance scope unchanged unless evidence supports expansion
+
 ## v0.4-S2 three-leg promotion — 2026-09-04
 
 - create `interop/s2/scripts/a2a_forwarder.py` — simple HTTP forwarder for SPIFFE/AIE proxy legs

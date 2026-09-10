@@ -60,5 +60,6 @@ For every meaningful AIE release, prefer one of:
 - test MCP/A2A interoperability;
 - attack authority attenuation or revocation boundaries;
 - submit contradictory prior art or an overlapping standard.
+- attack the novelty boundary directly: if AIE is merely renamed vendor permissioning, the portable-semantics and external-conformance claims should be empty; the falsifier and prior-art ledger in `evidence/s1.1/registry/prior_art_source_ledger.md` record how that objection is bounded.
 
 The useful outcome is independent implementation and criticism, not merely a version number with ceremonial confetti.
