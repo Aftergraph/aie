@@ -1,9 +1,11 @@
-"""RED tests for RevocationFreshnessMonitor (Task 2).
+"""Tests for RevocationFreshnessMonitor.
 
-These tests MUST fail until the production implementation exists.
 Spec: docs/superpowers/plans/2026-09-09-revocation-freshness-watermark.md Task 2
 """
 from __future__ import annotations
+
+import math
+import threading
 
 import pytest
 
@@ -133,6 +135,127 @@ def test_ttl_zero_or_negative_raises():
             freshness_ttl=-1.0,
             local_revocation_state_sha256=lambda: "a" * 64,
         )
+
+
+def test_non_finite_ttl_raises():
+    for invalid_ttl in (math.nan, math.inf):
+        with pytest.raises(ValueError):
+            RevocationFreshnessMonitor(
+                expected_source_gateway="spiffe://example.org/gateway/a",
+                freshness_ttl=invalid_ttl,
+                local_revocation_state_sha256=lambda: "a" * 64,
+            )
+
+
+def test_non_finite_clock_cannot_confirm_watermark():
+    for invalid_now in (math.nan, math.inf, -math.inf):
+        monitor = RevocationFreshnessMonitor(
+            expected_source_gateway="spiffe://example.org/gateway/a",
+            freshness_ttl=5.0,
+            local_revocation_state_sha256=lambda: "a" * 64,
+            monotonic_clock=lambda invalid_now=invalid_now: invalid_now,
+        )
+        assert monitor.observe(
+            source_gateway="spiffe://example.org/gateway/a",
+            sequence=1,
+            revocation_state_sha256="a" * 64,
+        ) is False
+        assert monitor.last_sequence is None
+
+
+def test_non_finite_clock_makes_confirmed_state_stale():
+    now = [10.0]
+    monitor = RevocationFreshnessMonitor(
+        expected_source_gateway="spiffe://example.org/gateway/a",
+        freshness_ttl=5.0,
+        local_revocation_state_sha256=lambda: "a" * 64,
+        monotonic_clock=lambda: now[0],
+    )
+    assert monitor.observe(
+        source_gateway="spiffe://example.org/gateway/a",
+        sequence=1,
+        revocation_state_sha256="a" * 64,
+    ) is True
+
+    now[0] = math.nan
+    assert monitor.is_fresh() is False
+
+
+def test_monitor_rechecks_ttl_after_local_digest_read():
+    now = [10.0]
+
+    def slow_digest() -> str:
+        now[0] += 1.0
+        return "a" * 64
+
+    monitor = RevocationFreshnessMonitor(
+        expected_source_gateway="spiffe://example.org/gateway/a",
+        freshness_ttl=5.0,
+        local_revocation_state_sha256=slow_digest,
+        monotonic_clock=lambda: now[0],
+    )
+    assert monitor.observe(
+        source_gateway="spiffe://example.org/gateway/a",
+        sequence=1,
+        revocation_state_sha256="a" * 64,
+    ) is True
+
+    now[0] = 14.5
+    assert monitor.is_fresh() is False
+
+
+def test_concurrent_observations_cannot_publish_mixed_sequence_and_digest_state():
+    rendezvous = threading.Barrier(2)
+    high_done = threading.Event()
+
+    class InterleavingClock:
+        def __call__(self) -> float:
+            name = threading.current_thread().name
+            if name not in {"freshness-low", "freshness-high"}:
+                return 11.5
+            try:
+                rendezvoused = rendezvous.wait(timeout=0.1) >= 0
+            except threading.BrokenBarrierError:
+                rendezvoused = False
+            if name == "freshness-low" and rendezvoused:
+                assert high_done.wait(timeout=1.0)
+                return 10.0
+            return 11.0
+
+    monitor = RevocationFreshnessMonitor(
+        expected_source_gateway="spiffe://example.org/gateway/a",
+        freshness_ttl=5.0,
+        local_revocation_state_sha256=lambda: "a" * 64,
+        monotonic_clock=InterleavingClock(),
+    )
+
+    def observe_low() -> None:
+        assert monitor.observe(
+            source_gateway="spiffe://example.org/gateway/a",
+            sequence=1,
+            revocation_state_sha256="a" * 64,
+        ) is True
+
+    def observe_high() -> None:
+        assert monitor.observe(
+            source_gateway="spiffe://example.org/gateway/a",
+            sequence=2,
+            revocation_state_sha256="b" * 64,
+        ) is True
+        high_done.set()
+
+    low = threading.Thread(target=observe_low, name="freshness-low")
+    high = threading.Thread(target=observe_high, name="freshness-high")
+    low.start()
+    high.start()
+    low.join(timeout=2.0)
+    high.join(timeout=2.0)
+
+    assert not low.is_alive()
+    assert not high.is_alive()
+    assert monitor.last_sequence == 2
+    assert monitor.authority_revocation_state_sha256 == "b" * 64
+    assert monitor.is_fresh() is False
 
 
 def test_restart_starts_stale():
