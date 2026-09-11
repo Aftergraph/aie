@@ -11,6 +11,7 @@ from aie_runtime.engine import AuthorityLease, Mission, Principal
 from aie_runtime.gateway.core import AIEGateway
 from aie_runtime.gateway.durable import SQLiteGatewayStore
 from aie_runtime.gateway.http import create_http_server
+from aie_runtime.gateway.freshness import RevocationFreshnessMonitor
 from aie_runtime.gateway.policy import LocalPolicyAdapter
 from aie_runtime.store import InMemoryState
 
@@ -353,3 +354,139 @@ def test_gateway_post_mcp_subscriptions_listen_streams_response_as_chunked(tmp_p
     # The forward_stream path must have been called (not the buffered forward).
     assert stub.received_method == "POST"
     assert stub.received_body.get("method") == "subscriptions/listen"
+
+
+def _freshness_payload(*, sequence=1, digest="a" * 64, source="spiffe://example.org/gateway/a"):
+    return {
+        "version": "aie-revocation-freshness/0.1",
+        "source_gateway": source,
+        "sequence": sequence,
+        "revocation_state_sha256": digest,
+    }
+
+
+def _freshness_headers(spiffe_id="spiffe://example.org/gateway/a"):
+    return {
+        "Content-Type": "application/json",
+        "X-AIE-Verified-Spiffe-ID": spiffe_id,
+        "X-AIE-Identity-Verified": "true",
+    }
+
+
+def test_federated_freshness_accepts_trusted_source_and_advances_monitor(tmp_path):
+    server, store = build_server(tmp_path)
+    now = [10.0]
+    monitor = RevocationFreshnessMonitor(
+        expected_source_gateway="spiffe://example.org/gateway/a",
+        freshness_ttl=5.0,
+        local_revocation_state_sha256=store.revocation_state_sha256,
+        monotonic_clock=lambda: now[0],
+    )
+    server.server_close()
+    server = create_http_server(
+        server.gateway,
+        host="127.0.0.1",
+        port=0,
+        admin_token="admin-secret",
+        trust_header_identity=True,
+        federation_trust={"spiffe://example.org/gateway/a"},
+        revocation_freshness_monitor=monitor,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        digest = store.revocation_state_sha256()
+        status, payload = request_json(
+            base, "POST", "/federation/revocation-freshness",
+            _freshness_payload(sequence=7, digest=digest), _freshness_headers(),
+        )
+        assert status == 200
+        assert payload == {"accepted": True, "sequence": 7}
+        assert monitor.last_sequence == 7
+        assert monitor.is_fresh() is True
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
+
+
+def test_federated_freshness_rejects_foreign_or_mismatched_identity_without_mutation(tmp_path):
+    server, store = build_server(tmp_path)
+    monitor = RevocationFreshnessMonitor(
+        expected_source_gateway="spiffe://example.org/gateway/a",
+        freshness_ttl=5.0,
+        local_revocation_state_sha256=store.revocation_state_sha256,
+        monotonic_clock=lambda: 10.0,
+    )
+    server.server_close()
+    server = create_http_server(
+        server.gateway, host="127.0.0.1", port=0, admin_token="admin-secret",
+        trust_header_identity=True, federation_trust={"spiffe://example.org/gateway/a"},
+        revocation_freshness_monitor=monitor,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        digest = store.revocation_state_sha256()
+        status, _ = request_json(
+            base, "POST", "/federation/revocation-freshness",
+            _freshness_payload(digest=digest), _freshness_headers("spiffe://example.org/gateway/foreign"),
+        )
+        assert status == 403
+        assert monitor.last_sequence is None
+
+        status, _ = request_json(
+            base, "POST", "/federation/revocation-freshness",
+            _freshness_payload(digest=digest, source="spiffe://example.org/gateway/other"), _freshness_headers(),
+        )
+        assert status == 400
+        assert monitor.last_sequence is None
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
+
+
+def test_federated_freshness_duplicate_and_malformed_do_not_refresh(tmp_path):
+    server, store = build_server(tmp_path)
+    now = [10.0]
+    monitor = RevocationFreshnessMonitor(
+        expected_source_gateway="spiffe://example.org/gateway/a", freshness_ttl=30.0,
+        local_revocation_state_sha256=store.revocation_state_sha256, monotonic_clock=lambda: now[0],
+    )
+    server.server_close()
+    server = create_http_server(
+        server.gateway, host="127.0.0.1", port=0, admin_token="admin-secret",
+        trust_header_identity=True, federation_trust={"spiffe://example.org/gateway/a"},
+        revocation_freshness_monitor=monitor,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        digest = store.revocation_state_sha256()
+        assert request_json(base, "POST", "/federation/revocation-freshness", _freshness_payload(sequence=3, digest=digest), _freshness_headers())[0] == 200
+        now[0] = 20.0
+        status, _ = request_json(base, "POST", "/federation/revocation-freshness", _freshness_payload(sequence=3, digest=digest), _freshness_headers())
+        assert status == 409
+        assert monitor.status()["age_seconds"] == 10.0
+
+        status, _ = request_json(base, "POST", "/federation/revocation-freshness", _freshness_payload(sequence=True, digest=digest), _freshness_headers())
+        assert status in {400, 409}
+        status, _ = request_json(base, "POST", "/federation/revocation-freshness", _freshness_payload(sequence=4, digest="A" * 64), _freshness_headers())
+        assert status in {400, 409}
+        assert monitor.last_sequence == 3
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
+
+
+def test_federated_freshness_without_monitor_is_unavailable(tmp_path):
+    server, _ = build_server(tmp_path)
+    server.federation_trust.add("spiffe://example.org/gateway/a")
+    thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        status, payload = request_json(
+            base, "POST", "/federation/revocation-freshness",
+            _freshness_payload(), _freshness_headers(),
+        )
+        assert status == 503
+        assert payload["error"] == "revocation_freshness_unavailable"
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
