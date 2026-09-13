@@ -3,7 +3,7 @@ from __future__ import annotations
 import http.client
 import ssl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 from urllib.parse import urlparse
 
 from .identity import validate_x509_svid_der
