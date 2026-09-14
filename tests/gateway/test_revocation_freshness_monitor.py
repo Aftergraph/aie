@@ -293,3 +293,58 @@ def test_status_reflects_current_state():
     assert status["last_sequence"] == 7
     assert status["age_seconds"] == pytest.approx(2.5)
     assert status["authority_revocation_state_sha256"] == "a" * 64
+
+
+def test_status_reports_clock_fault_when_confirmed_state_is_unreadable():
+    """A faulting monotonic clock after confirmation must surface a distinct
+    ``clock_fault`` signal, not just stale+age_seconds=None.
+
+    Without this field a caller reading only ``fresh``/``age_seconds`` cannot
+    tell a broken clock from a genuinely stale authority; both report stale
+    with age_seconds=None. ``is_fresh`` still fails closed (asserted here).
+    """
+    now = [10.0]
+    monitor = RevocationFreshnessMonitor(
+        expected_source_gateway="spiffe://example.org/gateway/a",
+        freshness_ttl=5.0,
+        local_revocation_state_sha256=lambda: "a" * 64,
+        monotonic_clock=lambda: now[0],
+    )
+    assert monitor.observe(
+        source_gateway="spiffe://example.org/gateway/a",
+        sequence=1,
+        revocation_state_sha256="a" * 64,
+    )
+    # Clock starts healthy and within TTL: not a fault.
+    assert monitor.status()["clock_fault"] is False
+
+    now[0] = math.nan
+    status = monitor.status()
+    assert status["fresh"] is False
+    assert status["age_seconds"] is None
+    assert status["clock_fault"] is True
+    assert monitor.is_fresh() is False
+
+    # A throwing clock is the same fault as a non-finite one.
+    def raising_clock() -> float:
+        raise RuntimeError("clock backend down")
+
+    monitor.monotonic_clock = raising_clock
+    assert monitor.status()["clock_fault"] is True
+    assert monitor.is_fresh() is False
+
+
+def test_status_clock_fault_false_before_any_watermark():
+    """Before any watermark is confirmed, an unreadable clock is not reported
+    as a fault: there is no confirmed state to measure against, so the monitor
+    is simply unconfirmed (last_sequence is None), not clock-faulted."""
+    monitor = RevocationFreshnessMonitor(
+        expected_source_gateway="spiffe://example.org/gateway/a",
+        freshness_ttl=5.0,
+        local_revocation_state_sha256=lambda: "a" * 64,
+        monotonic_clock=lambda: math.nan,
+    )
+    status = monitor.status()
+    assert status["fresh"] is False
+    assert status["last_sequence"] is None
+    assert status["clock_fault"] is False
