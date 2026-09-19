@@ -71,9 +71,10 @@ Conformance tests resolve after-graph-governance contracts through
 Evidence: `evidence/s1.1/AIE_S1_1_PROMOTION.json`, archived at `/home/nora/aie-evidence/33831755655/`.
 
 The current promotion target is **S2 official A2A interoperability**. Local
-three-leg official-TCK evidence exists, but institutional/external S2 promotion
-remains gated by issues #5/#6. See `STATUS.md` for the current evidence state,
-promotion boundary, and blockers.
+proxy-only official-TCK parity evidence exists (direct SUT plus two ordinary HTTP
+forwarders); live SPIFFE/AIE S2 path preservation and institutional/external S2
+promotion remain gated by issues #5/#6. See `STATUS.md` and `interop/s2/README.md`
+for the exact evidence boundary and blockers.
 
 The repository carries three execution providers:
 1. **GitHub-hosted** `ci.yml` — billing-locked on the legacy personal account (startup_failure on every job). Kept as a `workflow_dispatch` rollback path.
@@ -112,11 +113,11 @@ python -m pip install -e '.[dev,otel]'
 pytest -q
 ```
 
-Repository-local tests and the S2 comparator provide implementation evidence, not institutional promotion by themselves. The current S2 evidence state is **local official-TCK parity PASS / external attestation pending**; see `STATUS.md` and `interop/s2/README.md` for the exact boundary.
+Repository-local tests and the S2 comparator provide implementation evidence, not institutional promotion by themselves. The current S2 evidence state is **local proxy-only official-TCK parity PASS / live SPIFFE+AIE path evidence and external attestation pending**; see `STATUS.md` and `interop/s2/README.md` for the exact boundary.
 
 ## Status
 
-Research thesis → Draft specification → two runtimes → conformance → durable gateway → real trust/forwarding → external interoperability closure (S1.1 PASS, 2026-09-04) → **A2A local parity evidenced; external S2 attestation pending**.
+Research thesis → Draft specification → two runtimes → conformance → durable gateway → real trust/forwarding → external interoperability closure (S1.1 PASS, 2026-09-04) → **A2A proxy-only local parity evidenced; live SPIFFE+AIE S2 path evidence and external attestation pending**.
 
 See `evidence/s1.1/registry/walkthrough.md` for the end-to-end S1.1 promotion walkthrough.
 

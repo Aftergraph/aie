@@ -1,8 +1,8 @@
 # AIE S2 official A2A interoperability
 
-S2 evaluates whether the AIE authority layer preserves official A2A 1.0 semantics across direct, SPIFFE-proxied, and SPIFFE+AIE paths.
+S2 evaluates the promotion machinery for official A2A 1.0 interoperability. The recorded 2026-09-04 evidence exercises one direct endpoint plus two simple HTTP forwarder endpoints; it does **not** exercise live SPIFFE or the AIE authority gateway.
 
-**Current evidence boundary:** local three-leg official-TCK parity has produced a local S2 `PASS` with zero AIE semantic delta after shared upstream failures were classified separately. This is not an institutional/external S2 promotion claim. Issues #5/#6 remain the external-attestation gate.
+**Current evidence boundary:** the recorded three-endpoint official-TCK run demonstrates local **proxy-only parity**: direct SUT versus two ordinary HTTP forwarders. The comparator produced a local `PASS` after shared upstream failures were classified separately, but that result does not demonstrate preservation through SPIFFE or the AIE authority layer and is not an institutional/external S2 promotion claim. Issues #5/#6 remain the external-attestation / real-path gate.
 
 ## Pinned upstream provenance
 
@@ -36,9 +36,9 @@ The output is `AIE_S2_A2A_INTEROP.json`.
 
 ## Current observed evidence
 
-The recorded local three-leg official-TCK run produced the same result on direct, SPIFFE, and AIE legs: **183 passed, 5 failed, 47 skipped**. The comparator identified three MUST failures as shared upstream failures and produced local `promotion=PASS` with zero AIE semantic delta.
+The recorded local three-endpoint official-TCK run produced the same result on the direct endpoint and both HTTP-forwarder endpoints: **183 passed, 5 failed, 47 skipped**. The comparator identified three MUST failures as shared upstream failures and produced local `promotion=PASS` for the proxy-only comparison.
 
-This evidence establishes local parity for the tested paths. It does **not** establish institutional/external S2 promotion while issues #5/#6 remain open. A synthetic comparator test alone is not interoperability evidence; raw official TCK reports, per-leg process status, and the required external attestation remain part of the promotion boundary.
+This evidence establishes local parity only for the paths actually exercised: direct SUT plus ordinary HTTP forwarding. It does **not** establish SPIFFE-path preservation, AIE-authority-layer preservation, or institutional/external S2 promotion while issues #5/#6 remain open. A synthetic comparator test alone is not interoperability evidence; raw official TCK reports, per-endpoint process status, real SPIFFE/AIE execution evidence, and the required external attestation remain part of the promotion boundary.
 
 ## Preparing the official TCK
 
