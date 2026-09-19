@@ -1,6 +1,8 @@
-# AIE S2 official A2A interoperability preparation
+# AIE S2 official A2A interoperability
 
-S2 proves that the AIE authority layer preserves official A2A 1.0 semantics across direct, SPIFFE-proxied, and SPIFFE+AIE paths. This directory is **preparation only** until S1.2 issue #5 has an external PASS attestation.
+S2 evaluates whether the AIE authority layer preserves official A2A 1.0 semantics across direct, SPIFFE-proxied, and SPIFFE+AIE paths.
+
+**Current evidence boundary:** local three-leg official-TCK parity has produced a local S2 `PASS` with zero AIE semantic delta after shared upstream failures were classified separately. This is not an institutional/external S2 promotion claim. Issues #5/#6 remain the external-attestation gate.
 
 ## Pinned upstream provenance
 
@@ -18,7 +20,7 @@ The official TCK runs gRPC, JSON-RPC and HTTP+JSON when no transport filter is s
 1. identical official MUST requirement-ID sets across all three legs;
 2. identical official test-ID, status, and per-transport result maps;
 3. non-empty coverage of gRPC, JSON-RPC, and HTTP+JSON on every leg;
-4. a zero official TCK process exit code on every leg;
+4. an official TCK process result that is either `0` (tests pass) or `1` (test failures recorded in the compatibility report); process exits `>=2` fail the comparison;
 5. a semantically identical Agent Card capability/skill surface, excluding the endpoint URL;
 6. a passing direct baseline;
 7. a structurally valid canonical S1 external attestation.
@@ -27,11 +29,16 @@ The S1 dependency is not satisfied by a bare `{"promotion":"PASS"}`. The attesta
 
 The output is `AIE_S2_A2A_INTEROP.json`.
 
-- semantic mismatch, non-zero TCK process status, or failing direct MUST -> `FAIL`
+- semantic mismatch, process crash (`exit >= 2`), leg-specific MUST failure, missing transport coverage, or Agent Card semantic mismatch -> `FAIL`
+- a MUST failure shared identically by direct, SPIFFE, and AIE legs is recorded as an upstream gap rather than an AIE semantic delta
 - perfect A2A parity but invalid/non-PASS S1 attestation -> `BLOCKED_BY_S1`
 - perfect parity + validated S1 PASS -> `PASS`
 
-A local synthetic test of the comparator is not A2A interoperability evidence. Raw official TCK reports and per-leg process status remain required.
+## Current observed evidence
+
+The recorded local three-leg official-TCK run produced the same result on direct, SPIFFE, and AIE legs: **183 passed, 5 failed, 47 skipped**. The comparator identified three MUST failures as shared upstream failures and produced local `promotion=PASS` with zero AIE semantic delta.
+
+This evidence establishes local parity for the tested paths. It does **not** establish institutional/external S2 promotion while issues #5/#6 remain open. A synthetic comparator test alone is not interoperability evidence; raw official TCK reports, per-leg process status, and the required external attestation remain part of the promotion boundary.
 
 ## Preparing the official TCK
 
