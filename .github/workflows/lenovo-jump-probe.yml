@@ -1,0 +1,98 @@
+name: Lenovo jump probe
+
+on:
+  push:
+    branches:
+      - ops/lenovo-jump-probe-20260920
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: [self-hosted, linux, x64, aie-interop]
+    timeout-minutes: 8
+    steps:
+      - name: Probe existing VDS to Lenovo path
+        shell: bash
+        env:
+          TARGET_HOST: jonas-lenovo.tail59667c.ts.net
+          TARGET_USER: empir
+        run: |
+          set -u
+          summary="$RUNNER_TEMP/lenovo-jump-probe.json"
+
+          runner_host="$(hostname 2>/dev/null || echo unknown)"
+
+          tailscale_present=false
+          tailscale_reachable=false
+          if command -v tailscale >/dev/null 2>&1; then
+            tailscale_present=true
+            if tailscale ping -c 1 --timeout=5s "$TARGET_HOST" >/dev/null 2>&1; then
+              tailscale_reachable=true
+            fi
+          fi
+
+          tcp22=false
+          if timeout 5 bash -c "exec 3<>/dev/tcp/$TARGET_HOST/22" >/dev/null 2>&1; then
+            tcp22=true
+          fi
+
+          tcp9905=false
+          if timeout 5 bash -c "exec 3<>/dev/tcp/$TARGET_HOST/9905" >/dev/null 2>&1; then
+            tcp9905=true
+          fi
+
+          a2a_http_code="unreachable"
+          if [ "$tcp9905" = true ] && command -v curl >/dev/null 2>&1; then
+            code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://$TARGET_HOST:9905/" 2>/dev/null || true)"
+            if [ -n "$code" ]; then
+              a2a_http_code="$code"
+            fi
+          fi
+
+          ssh_authenticated=false
+          ssh_remote_host=""
+          if [ "$tcp22" = true ] && command -v ssh >/dev/null 2>&1; then
+            out="$(
+              timeout 10 ssh                 -o BatchMode=yes                 -o PasswordAuthentication=no                 -o KbdInteractiveAuthentication=no                 -o ConnectTimeout=5                 -o StrictHostKeyChecking=accept-new                 -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts"                 "$TARGET_USER@$TARGET_HOST"                 'echo AFTERGRAPH_SSH_OK && hostname' 2>/dev/null || true
+            )"
+            if printf '%s\n' "$out" | grep -q '^AFTERGRAPH_SSH_OK$'; then
+              ssh_authenticated=true
+              ssh_remote_host="$(printf '%s\n' "$out" | tail -n 1 | tr -cd '[:alnum:]._-')"
+            fi
+          fi
+
+          python3 - "$summary" "$runner_host" "$tailscale_present" "$tailscale_reachable" "$tcp22" "$tcp9905" "$a2a_http_code" "$ssh_authenticated" "$ssh_remote_host" <<'PY'
+          import json, sys
+          (
+              path, runner_host, tailscale_present, tailscale_reachable,
+              tcp22, tcp9905, a2a_http_code, ssh_authenticated, ssh_remote_host
+          ) = sys.argv[1:]
+          payload = {
+              "probe_version": "lenovo-jump/1.0",
+              "mutation_performed": False,
+              "runner_host": runner_host,
+              "target": "jonas-lenovo",
+              "tailscale_present": tailscale_present == "true",
+              "tailscale_reachable": tailscale_reachable == "true",
+              "tcp_22": tcp22 == "true",
+              "tcp_9905": tcp9905 == "true",
+              "a2a_root_http_code": a2a_http_code,
+              "ssh_authenticated": ssh_authenticated == "true",
+              "ssh_remote_host": ssh_remote_host or None,
+          }
+          with open(path, "w", encoding="utf-8") as fh:
+              json.dump(payload, fh, sort_keys=True, indent=2)
+          print(json.dumps(payload, sort_keys=True))
+          PY
+
+      - name: Upload sanitized probe
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: lenovo-jump-probe-${{ github.run_id }}
+          path: ${{ runner.temp }}/lenovo-jump-probe.json
+          if-no-files-found: error
+          retention-days: 3
