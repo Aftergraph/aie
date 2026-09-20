@@ -31,16 +31,7 @@ class FunctionalRuntime:
     def _event(self, event_type: str, **attrs: Any) -> None:
         self.state.setdefault("events", []).append({"event_type": event_type, "attributes": attrs})
 
-    def admit(self, request: dict[str, Any]) -> dict[str, Any]:
-        outcomes = self.state.setdefault("outcomes", {})
-        action_id = request["action_id"]
-        if action_id in outcomes:
-            return {"status": "prior-outcome", "error_code": "AIE-REPLAY-001"}
-
-        for ext in request.get("extensions", []):
-            if ext.get("critical") and ext.get("namespace") not in self.supported_extensions:
-                raise AIEError("AIE-EXT-001")
-
+    def _validated_lease(self, request: dict[str, Any]) -> dict[str, Any]:
         principals = self.state.get("principals", {})
         missions = self.state.get("missions", {})
         leases = self.state.get("leases", {})
@@ -51,8 +42,7 @@ class FunctionalRuntime:
             raise AIEError("AIE-AUTH-001")
         if lease.get("principal_id") != request["principal_id"] or lease.get("mission_id") != request["mission_id"]:
             raise AIEError("AIE-AUTH-001")
-        expires = datetime.fromisoformat(lease["expires_at"])
-        if expires <= self.now():
+        if datetime.fromisoformat(lease["expires_at"]) <= self.now():
             raise AIEError("AIE-AUTH-002")
         if lease.get("revoked", False):
             raise AIEError("AIE-AUTH-003")
@@ -60,6 +50,19 @@ class FunctionalRuntime:
             raise AIEError("AIE-AUTH-004")
         if not any(request["resource"].startswith(p) for p in lease.get("resource_prefixes", [])):
             raise AIEError("AIE-AUTH-004")
+        return lease
+
+    def admit(self, request: dict[str, Any]) -> dict[str, Any]:
+        outcomes = self.state.setdefault("outcomes", {})
+        action_id = request["action_id"]
+        if action_id in outcomes:
+            return {"status": "prior-outcome", "error_code": "AIE-REPLAY-001"}
+
+        for ext in request.get("extensions", []):
+            if ext.get("critical") and ext.get("namespace") not in self.supported_extensions:
+                raise AIEError("AIE-EXT-001")
+
+        lease = self._validated_lease(request)
 
         cost = float(request.get("budget_cost", 0))
         remaining = float(lease.get("budget_remaining", 0))
@@ -163,26 +166,7 @@ class FunctionalRuntime:
             raise AIEError("AIE-AUTH-004")
 
         # Re-resolve against live state: _raise on drift/expiry/revocation.
-        principals = self.state.get("principals", {})
-        missions = self.state.get("missions", {})
-        leases = self.state.get("leases", {})
-        principal = principals.get(request["principal_id"])
-        mission = missions.get(request["mission_id"])
-        lease = leases.get(request["lease_id"])
-        if principal is None or mission is None or lease is None:
-            raise AIEError("AIE-AUTH-001")
-        if (lease.get("principal_id") != request["principal_id"] or
-                lease.get("mission_id") != request["mission_id"]):
-            raise AIEError("AIE-AUTH-001")
-        expires = datetime.fromisoformat(lease["expires_at"])
-        if expires <= self.now():
-            raise AIEError("AIE-AUTH-002")
-        if lease.get("revoked", False):
-            raise AIEError("AIE-AUTH-003")
-        if not capability_set_allows(set(lease.get("capabilities", [])), request["capability"]):
-            raise AIEError("AIE-AUTH-004")
-        if not any(request["resource"].startswith(p) for p in lease.get("resource_prefixes", [])):
-            raise AIEError("AIE-AUTH-004")
+        lease = self._validated_lease(request)
 
         # Budget floor: reserved cost must still be coverable at execution time.
         cost = float(request.get("budget_cost", 0))
