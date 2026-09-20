@@ -23,7 +23,7 @@ permissions:
 
 concurrency:
   group: aie-v04-ci-self-hosted-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -45,12 +45,43 @@ jobs:
       # Pinned org control-plane snapshot; consumed read-only for manifest validation.
       CONTROL_PLANE_SHA: c3f35d31a87d637a0243e87566a32925422fb584
     steps:
+      - id: freshness
+        name: Skip obsolete PR head before expensive setup
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
+            echo "fresh=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          response="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          current_head="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["head"]["sha"])' <<<"$response")"
+
+          if [[ "$current_head" == "$EVENT_HEAD" ]]; then
+            echo "fresh=true" >> "$GITHUB_OUTPUT"
+            echo "Exact PR head is current: $EVENT_HEAD"
+          else
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Obsolete PR head $EVENT_HEAD; current head is $current_head. Expensive CI is skipped without cancellation."
+          fi
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.freshness.outputs.fresh == 'true'
         with:
           persist-credentials: false
           clean: true
 
       - name: Prepare clean-room namespaces
+        if: steps.freshness.outputs.fresh == 'true'
         run: |
           set -euo pipefail
           RUN_NAMESPACE="aie-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.python }}"
@@ -74,6 +105,7 @@ jobs:
       # exact governance SHA. The old workspace-level sibling checkout caused
       # pytest collection collisions before testpaths was pinned in AIE #37.
       - name: Checkout pinned after-graph-governance dependency
+        if: steps.freshness.outputs.fresh == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: Aftergraph/after-graph-governance
@@ -83,11 +115,13 @@ jobs:
           clean: true
 
       - name: Export governance contract path
+        if: steps.freshness.outputs.fresh == 'true'
         run: |
           echo "GOVERNANCE_DIR=$GITHUB_WORKSPACE/.ci-dependencies/after-graph-governance" >> "$GITHUB_ENV"
           echo "GOVERNANCE_CONTRACTS_PATH=$GITHUB_WORKSPACE/.ci-dependencies/after-graph-governance/docs/contracts/frozen" >> "$GITHUB_ENV"
 
       - name: Checkout pinned Aftergraph control-plane manifest
+        if: steps.freshness.outputs.fresh == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: Aftergraph/.github
@@ -97,6 +131,7 @@ jobs:
           clean: true
 
       - name: Ensure uv + Python matrix + venv available
+        if: steps.freshness.outputs.fresh == 'true'
         # Single static binary, user-local, no sudo. Builds the
         # matrix Pythons on demand (cached by uv after the first
         # install). ~30s per build, ~120MB per Python. The venv
@@ -123,6 +158,7 @@ jobs:
           "$VENV/bin/python" --version
 
       - name: Install package
+        if: steps.freshness.outputs.fresh == 'true'
         run: |
           set -euo pipefail
           export UV_CACHE_DIR="$UV_CACHE_DIR"
@@ -130,6 +166,7 @@ jobs:
           python -m pip install -e '.[dev,otel]'
 
       - name: Verify pinned polyrepo dependency manifest
+        if: steps.freshness.outputs.fresh == 'true'
         run: |
           set -euo pipefail
           python "$CONTROL_DIR/scripts/verify_polyrepo_heads.py" \
@@ -137,6 +174,7 @@ jobs:
             --head "Aftergraph/after-graph-governance=${GOVERNANCE_SHA}"
 
       - name: Verify runner clean-room contract
+        if: steps.freshness.outputs.fresh == 'true'
         run: |
           set -euo pipefail
           cat > "$AIE_CI_RESULTS/runner-clean-room.json" <<JSON
@@ -166,6 +204,7 @@ jobs:
           python "$GOVERNANCE_DIR/scripts/verify_runner_clean_room.py" "$AIE_CI_RESULTS/runner-clean-room.json"
 
       - name: Compile + pytest
+        if: steps.freshness.outputs.fresh == 'true'
         run: |
           set -euo pipefail
           mkdir -p "$AIE_CI_RESULTS"
@@ -173,7 +212,7 @@ jobs:
           python -m pytest -q --junitxml="$AIE_CI_RESULTS/junit-${{ matrix.python }}.xml"
 
       - name: Persist runner-local evidence
-        if: always()
+        if: always() && steps.freshness.outputs.fresh == 'true'
         run: |
           set -euo pipefail
           mkdir -p "$AIE_CI_RESULTS"
@@ -181,7 +220,7 @@ jobs:
           python --version > "$AIE_CI_RESULTS/python-${{ matrix.python }}.txt"
 
       - name: Clean runner namespaces
-        if: always()
+        if: always() && steps.freshness.outputs.fresh == 'true'
         run: |
           set -euo pipefail
           rm -rf "$DEPENDENCY_ROOT" "$TEMP_ROOT" "$UV_CACHE_DIR"
