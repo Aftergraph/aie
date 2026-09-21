@@ -32,7 +32,7 @@ work:
           trap 'rm -rf "$root"' EXIT
 
           git clone -q --filter=blob:none https://github.com/Aftergraph/STEWARD-by-Aftergraph.git "$root/steward"
-          git -C "$root/steward" checkout -q 960fbbfb6b0261747a7071171430b0a6e830150f
+          git -C "$root/steward" checkout -q f7bbe4939a1e24ceaaf7030d79fccadc4b8981f5
 
           git clone -q --filter=blob:none https://github.com/Aftergraph/runtime.git "$root/runtime"
           git -C "$root/runtime" checkout -q d9c5efb3a74222326ec71b06d5c2df2d4215d68f
