@@ -1,8 +1,4 @@
-# works.yml — proof-only STEWARD P2 TG/AIE cross-process execution.
-#
-# DO NOT MERGE. This branch uses AIE's already-wired Aftergraph WORKS webhook
-# only as an execution vehicle. The job runs on the established avc-core VDS pool
-# and pins every owner checkout to an exact SHA.
+# Diagnostic WORKS probe for STEWARD P2. Proof-only; do not merge.
 version: 1
 
 work:
@@ -18,44 +14,24 @@ work:
       pool: avc-core
 
     nodes:
-      proof:
+      toolchain:
         run: |
           set -euo pipefail
-          export PATH=/opt/works/node-current/bin:$PATH
-
+          export PATH=/opt/works/node-current/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH
           command -v git
           command -v go
           command -v node
           command -v python3
-
-          root="$(mktemp -d)"
-          trap 'rm -rf "$root"' EXIT
-
-          git clone -q --filter=blob:none https://github.com/Aftergraph/STEWARD-by-Aftergraph.git "$root/steward"
-          git -C "$root/steward" checkout -q 2fee57aa808a790afd073fd1525e730469764f0f
-
-          git clone -q --filter=blob:none https://github.com/Aftergraph/runtime.git "$root/runtime"
-          git -C "$root/runtime" checkout -q d9c5efb3a74222326ec71b06d5c2df2d4215d68f
-
-          git clone -q --filter=blob:none https://github.com/Aftergraph/works-execution.git "$root/works-execution"
-          git -C "$root/works-execution" checkout -q 64cabe65bf210b2c65b525750acb45fc6d53894d
-
-          git clone -q --filter=blob:none https://github.com/Aftergraph/trust-gateway.git "$root/trust-gateway"
-          git -C "$root/trust-gateway" checkout -q 8a2c8d66a67d036227c77904844f105b39723f58
-
-          git clone -q --filter=blob:none https://github.com/Aftergraph/aie.git "$root/aie-owner"
-          git -C "$root/aie-owner" checkout -q 4e3514b936d2d65433b6c51901afb56908abd545
-
-          bash "$root/steward/scripts/p2_tg_aie_cross_process_proof.sh" \
-            "$root/runtime" \
-            "$root/works-execution" \
-            "$root/trust-gateway" \
-            "$root/aie-owner" \
-            d9c5efb3a74222326ec71b06d5c2df2d4215d68f \
-            64cabe65bf210b2c65b525750acb45fc6d53894d \
-            8a2c8d66a67d036227c77904844f105b39723f58 \
-            4e3514b936d2d65433b6c51901afb56908abd545 \
-            "$root/sentinel" \
-            eb51f824af2279ee3eee5daa8572bd54a34b3ca8
+          if command -v pnpm >/dev/null 2>&1; then
+            pnpm --version >/dev/null
+          elif command -v corepack >/dev/null 2>&1; then
+            corepack --version >/dev/null
+          elif command -v npx >/dev/null 2>&1; then
+            npx --version >/dev/null
+          else
+            exit 41
+          fi
+          test -d /tmp
+          printf 'STEWARD_P2_WORKS_TOOLCHAIN=PASS\n'
         cache: false
-        timeout_s: 1200
+        timeout_s: 120
