@@ -1,0 +1,106 @@
+name: STEWARD P2 full-chain proof (VDS)
+
+on:
+  push:
+    branches:
+      - proof/steward-p2-runtime-works-20260921
+    paths:
+      - "works.yml"
+      - ".github/workflows/proof-steward-p2-full-chain.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: steward-p2-full-chain-vds
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: [self-hosted, linux, x64, aie-interop]
+    timeout-minutes: 30
+    env:
+      PATH: /opt/works/node-current/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
+      STEWARD_SHA: 2fee57aa808a790afd073fd1525e730469764f0f
+      RUNTIME_SHA: d9c5efb3a74222326ec71b06d5c2df2d4215d68f
+      WORKS_SHA: 64cabe65bf210b2c65b525750acb45fc6d53894d
+      TG_SHA: 8a2c8d66a67d036227c77904844f105b39723f58
+      AIE_SHA: 4e3514b936d2d65433b6c51901afb56908abd545
+      SENTINEL_SHA: eb51f824af2279ee3eee5daa8572bd54a34b3ca8
+    steps:
+      - name: Checkout execution vehicle
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Checkout exact STEWARD proof
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Aftergraph/STEWARD-by-Aftergraph
+          ref: ${{ env.STEWARD_SHA }}
+          path: .p2/steward
+          persist-credentials: false
+          clean: true
+
+      - name: Checkout exact Runtime owner
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Aftergraph/runtime
+          ref: ${{ env.RUNTIME_SHA }}
+          path: .p2/runtime
+          persist-credentials: false
+          clean: true
+
+      - name: Checkout exact WORKS owner
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Aftergraph/works-execution
+          ref: ${{ env.WORKS_SHA }}
+          path: .p2/works
+          persist-credentials: false
+          clean: true
+
+      - name: Checkout exact Trust Gateway owner
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Aftergraph/trust-gateway
+          ref: ${{ env.TG_SHA }}
+          path: .p2/tg
+          persist-credentials: false
+          clean: true
+
+      - name: Checkout exact AIE owner candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Aftergraph/aie
+          ref: ${{ env.AIE_SHA }}
+          path: .p2/aie
+          persist-credentials: false
+          clean: true
+
+      - name: Checkout exact Sentinel owner
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Aftergraph/sentinel
+          ref: ${{ env.SENTINEL_SHA }}
+          path: .p2/sentinel
+          persist-credentials: false
+          clean: true
+
+      - name: Assert execution toolchain
+        run: |
+          set -euo pipefail
+          node --version
+          python3 --version
+          go version
+          git --version
+          if command -v pnpm >/dev/null 2>&1; then pnpm --version; fi
+          if command -v corepack >/dev/null 2>&1; then corepack --version; fi
+          if command -v npx >/dev/null 2>&1; then npx --version; fi
+
+      - name: Execute composed owner-backed proof
+        run: |
+          set -euo pipefail
+          bash .p2/steward/scripts/p2_tg_aie_cross_process_proof.sh             "$GITHUB_WORKSPACE/.p2/runtime"             "$GITHUB_WORKSPACE/.p2/works"             "$GITHUB_WORKSPACE/.p2/tg"             "$GITHUB_WORKSPACE/.p2/aie"             "$RUNTIME_SHA"             "$WORKS_SHA"             "$TG_SHA"             "$AIE_SHA"             "$GITHUB_WORKSPACE/.p2/sentinel"             "$SENTINEL_SHA"
