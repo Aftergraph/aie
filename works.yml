@@ -43,7 +43,7 @@ work:
           set -euo pipefail
           sudo -n test -r /etc/works/works.env
           sudo -n grep -Eq '^WORKS_ENROLL_SECRET=.+' /etc/works/works.env
-          sudo -n test -r /root/.config/gh/hosts.yml
-          printf 'credential_broker_root_gh_config=present\\n'
+          sudo -n ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=yes empir@100.72.80.64 hostname | grep -qi 'JONAS-LENOVO'
+          printf 'credential_broker_vds_to_lenovo_ssh=ready\\n'
         cache: false
         timeout_s: 60
