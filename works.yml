@@ -1,13 +1,12 @@
-# works.yml — proof-only STEWARD P2 cross-process execution through Aftergraph WORKS.
+# works.yml — proof-only STEWARD P2 TG/AIE cross-process execution.
 #
-# DO NOT MERGE. This branch uses AIE's already-wired WORKS webhook only as an
-# execution vehicle so the canonical avc-core VDS pool can run the exact STEWARD
-# P2 Runtime→WORKS proof. It grants no new authority and touches no production
-# endpoint.
+# DO NOT MERGE. This branch uses AIE's already-wired Aftergraph WORKS webhook
+# only as an execution vehicle. The job runs on the Node-capable tg-ci VDS pool
+# and pins every owner checkout to an exact SHA.
 version: 1
 
 work:
-  steward-p2-runtime-works-proof:
+  steward-p2-tg-aie-proof:
     triggers:
       - push
       - pull_request
@@ -28,23 +27,34 @@ work:
           command -v go
           command -v node
           command -v corepack
+          command -v python3
 
           root="$(mktemp -d)"
           trap 'rm -rf "$root"' EXIT
 
-          git clone -q https://github.com/Aftergraph/STEWARD-by-Aftergraph.git "$root/steward"
-          git -C "$root/steward" checkout -q 6934f1b1944ae7a6671a2f46d76f3978caa2e365
+          git clone -q --filter=blob:none https://github.com/Aftergraph/STEWARD-by-Aftergraph.git "$root/steward"
+          git -C "$root/steward" checkout -q 69e04761ef26c5969cd27a06b23bd3b914a000a5
 
-          git clone -q https://github.com/Aftergraph/runtime.git "$root/runtime"
+          git clone -q --filter=blob:none https://github.com/Aftergraph/runtime.git "$root/runtime"
           git -C "$root/runtime" checkout -q d9c5efb3a74222326ec71b06d5c2df2d4215d68f
 
-          git clone -q https://github.com/Aftergraph/works-execution.git "$root/works-execution"
+          git clone -q --filter=blob:none https://github.com/Aftergraph/works-execution.git "$root/works-execution"
           git -C "$root/works-execution" checkout -q 64cabe65bf210b2c65b525750acb45fc6d53894d
 
-          bash "$root/steward/scripts/p2_runtime_works_cross_process_proof.sh" \
+          git clone -q --filter=blob:none https://github.com/Aftergraph/trust-gateway.git "$root/trust-gateway"
+          git -C "$root/trust-gateway" checkout -q 8a2c8d66a67d036227c77904844f105b39723f58
+
+          git clone -q --filter=blob:none https://github.com/Aftergraph/aie.git "$root/aie-owner"
+          git -C "$root/aie-owner" checkout -q 4e3514b936d2d65433b6c51901afb56908abd545
+
+          bash "$root/steward/scripts/p2_tg_aie_cross_process_proof.sh" \
             "$root/runtime" \
             "$root/works-execution" \
+            "$root/trust-gateway" \
+            "$root/aie-owner" \
             d9c5efb3a74222326ec71b06d5c2df2d4215d68f \
-            64cabe65bf210b2c65b525750acb45fc6d53894d
+            64cabe65bf210b2c65b525750acb45fc6d53894d \
+            8a2c8d66a67d036227c77904844f105b39723f58 \
+            4e3514b936d2d65433b6c51901afb56908abd545
         cache: false
         timeout_s: 1200
