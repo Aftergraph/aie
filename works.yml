@@ -1,22 +1,13 @@
-# works.yml — AIE CI pipeline, executed by the works-execution control plane.
+# works.yml — proof-only STEWARD P2 cross-process execution through Aftergraph WORKS.
 #
-# Hosted GitHub Actions CI is dead on this account (billing lock: every
-# hosted job fails with startup_failure before any step runs). The
-# self-hosted GH runner (aie-interop label) covers the S1 interop proof;
-# this file makes the works control plane cover per-push verification
-# with evidence on disk, published as a GitHub commit status
-# (context: works-execution).
-#
-# Requirements.Pool pins execution to the avc-core pool (3 parallel
-# workers on the VDS). cache_key_inputs: [run, repository] makes the
-# RFC-0005 fingerprint source-invariant: identical pipeline definitions
-# hit the cache across pushes (~3s instead of ~26s). The command itself
-# embeds the source (fresh checkout per run), so excluding the SHA from
-# the key is safe.
+# DO NOT MERGE. This branch uses AIE's already-wired WORKS webhook only as an
+# execution vehicle so the canonical avc-core VDS pool can run the exact STEWARD
+# P2 Runtime→WORKS proof. It grants no new authority and touches no production
+# endpoint.
 version: 1
 
 work:
-  verify:
+  steward-p2-runtime-works-proof:
     triggers:
       - push
       - pull_request
@@ -28,12 +19,32 @@ work:
       pool: avc-core
 
     nodes:
-      test:
+      proof:
         run: |
-          uv venv .venv-works
-          uv pip install --python .venv-works/bin/python -q -e '.[dev,otel]'
-          python3 -m compileall -q src
-          .venv-works/bin/python -m pytest -q
-        cache: true
-        cache_key_inputs: [run, repository]
-        timeout_s: 600
+          set -euo pipefail
+          export PATH=/opt/works/node-current/bin:$PATH
+
+          command -v git
+          command -v go
+          command -v node
+          command -v corepack
+
+          root="$(mktemp -d)"
+          trap 'rm -rf "$root"' EXIT
+
+          git clone -q https://github.com/Aftergraph/STEWARD-by-Aftergraph.git "$root/steward"
+          git -C "$root/steward" checkout -q 6934f1b1944ae7a6671a2f46d76f3978caa2e365
+
+          git clone -q https://github.com/Aftergraph/runtime.git "$root/runtime"
+          git -C "$root/runtime" checkout -q d9c5efb3a74222326ec71b06d5c2df2d4215d68f
+
+          git clone -q https://github.com/Aftergraph/works-execution.git "$root/works-execution"
+          git -C "$root/works-execution" checkout -q 64cabe65bf210b2c65b525750acb45fc6d53894d
+
+          bash "$root/steward/scripts/p2_runtime_works_cross_process_proof.sh" \
+            "$root/runtime" \
+            "$root/works-execution" \
+            d9c5efb3a74222326ec71b06d5c2df2d4215d68f \
+            64cabe65bf210b2c65b525750acb45fc6d53894d
+        cache: false
+        timeout_s: 1200
