@@ -1,4 +1,4 @@
-# Diagnostic WORKS slice: exact checkout proof.
+# Diagnostic WORKS probe: private Runtime SSH access from avc-core.
 # Proof-only; do not merge.
 version: 1
 
@@ -11,21 +11,12 @@ work:
       arch: amd64
       pool: avc-core
     nodes:
-      checkout:
+      runtime-private-access:
         run: |
           set -euo pipefail
           export PATH=/opt/works/node-current/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH
-          root="$(mktemp -d)"
-          trap 'rm -rf "$root"' EXIT
-          git clone -q --filter=blob:none https://github.com/Aftergraph/STEWARD-by-Aftergraph.git "$root/steward"
-          git -C "$root/steward" checkout -q 2fee57aa808a790afd073fd1525e730469764f0f
-          test "$(git -C "$root/steward" rev-parse HEAD)" = "2fee57aa808a790afd073fd1525e730469764f0f"
-          git clone -q --filter=blob:none https://github.com/Aftergraph/runtime.git "$root/runtime"
-          git -C "$root/runtime" checkout -q d9c5efb3a74222326ec71b06d5c2df2d4215d68f
-          test "$(git -C "$root/runtime" rev-parse HEAD)" = "d9c5efb3a74222326ec71b06d5c2df2d4215d68f"
-          git clone -q --filter=blob:none https://github.com/Aftergraph/works-execution.git "$root/works"
-          git -C "$root/works" checkout -q 64cabe65bf210b2c65b525750acb45fc6d53894d
-          test "$(git -C "$root/works" rev-parse HEAD)" = "64cabe65bf210b2c65b525750acb45fc6d53894d"
-          printf 'STEWARD_P2_EXACT_CHECKOUTS=PASS\n'
+          export GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes'
+          git ls-remote git@github.com:Aftergraph/runtime.git | grep -q 'd9c5efb3a74222326ec71b06d5c2df2d4215d68f'
+          printf 'STEWARD_P2_RUNTIME_SSH_ACCESS=PASS\n'
         cache: false
-        timeout_s: 300
+        timeout_s: 120
