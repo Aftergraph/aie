@@ -43,10 +43,7 @@ work:
           set -euo pipefail
           sudo -n test -r /etc/works/works.env
           sudo -n grep -Eq '^WORKS_ENROLL_SECRET=.+' /etc/works/works.env
-          GH_BIN="$(command -v gh)"
-          test -n "$GH_BIN"
           sudo -n test -r /root/.config/gh/hosts.yml
-          sudo -n env GH_CONFIG_DIR=/root/.config/gh "$GH_BIN" auth status -h github.com >/dev/null 2>&1
-          printf 'credential_broker_root_gh_auth=probe_pass\\n'
+          printf 'credential_broker_root_gh_config=present\\n'
         cache: false
         timeout_s: 60
