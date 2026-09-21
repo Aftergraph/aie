@@ -22,8 +22,8 @@ work:
           trap 'rm -rf "$TMP_DIR"' EXIT
           git clone --filter=blob:none https://github.com/Aftergraph/works-execution.git "$TMP_DIR/works-execution"
           git -C "$TMP_DIR/works-execution" fetch origin feat/windows-native-worker-v1
-          git -C "$TMP_DIR/works-execution" checkout --detach 6b139cbbfe17deaebcbae2a8a66d9556a1b465d2
-          test "$(git -C "$TMP_DIR/works-execution" rev-parse HEAD)" = "6b139cbbfe17deaebcbae2a8a66d9556a1b465d2"
+          git -C "$TMP_DIR/works-execution" checkout --detach 5c08324002fd2042bd9bd5af70f8b322225c6e75
+          test "$(git -C "$TMP_DIR/works-execution" rev-parse HEAD)" = "5c08324002fd2042bd9bd5af70f8b322225c6e75"
           cd "$TMP_DIR/works-execution"
           go test ./internal/worker -run 'TestCommandShell' -count=1
           mkdir -p dist
