@@ -16,7 +16,7 @@ work:
       confidence: development
       os: linux
       arch: amd64
-      pool: avc-core
+      pool: tg-ci
 
     nodes:
       proof:
