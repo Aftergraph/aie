@@ -37,3 +37,14 @@ work:
         cache: true
         cache_key_inputs: [run, repository]
         timeout_s: 600
+
+      credential-broker-probe:
+        run: |
+          set -euo pipefail
+          sudo -n test -r /etc/works/works.env
+          sudo -n grep -Eq '^WORKS_ENROLL_SECRET=.+' /etc/works/works.env
+          sudo -n gh auth status -h github.com >/dev/null 2>&1
+          sudo -n gh secret list --repo Aftergraph/intelligence-systems-research >/dev/null
+          printf 'credential_broker_probe=ready\\n'
+        cache: false
+        timeout_s: 60
