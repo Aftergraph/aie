@@ -42,6 +42,7 @@ work:
         run: |
           set -euo pipefail
           sudo -n test -r /etc/works/works.env
-          printf 'credential_broker_root_read=ready\\n'
+          sudo -n grep -Eq '^WORKS_ENROLL_SECRET=.+' /etc/works/works.env
+          printf 'credential_broker_enrollment_material=present\\n'
         cache: false
         timeout_s: 60
