@@ -1,4 +1,5 @@
-# Diagnostic WORKS probe for STEWARD P2. Proof-only; do not merge.
+# Diagnostic WORKS slice: Runtime -> WORKS exact-owner proof.
+# Proof-only; do not merge.
 version: 1
 
 work:
@@ -14,24 +15,22 @@ work:
       pool: avc-core
 
     nodes:
-      toolchain:
+      runtime-works:
         run: |
           set -euo pipefail
           export PATH=/opt/works/node-current/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH
-          command -v git
-          command -v go
-          command -v node
-          command -v python3
-          if command -v pnpm >/dev/null 2>&1; then
-            pnpm --version >/dev/null
-          elif command -v corepack >/dev/null 2>&1; then
-            corepack --version >/dev/null
-          elif command -v npx >/dev/null 2>&1; then
-            npx --version >/dev/null
-          else
-            exit 41
-          fi
-          test -d /tmp
-          printf 'STEWARD_P2_WORKS_TOOLCHAIN=PASS\n'
+          root="$(mktemp -d)"
+          trap 'rm -rf "$root"' EXIT
+
+          git clone -q --filter=blob:none https://github.com/Aftergraph/STEWARD-by-Aftergraph.git "$root/steward"
+          git -C "$root/steward" checkout -q 2fee57aa808a790afd073fd1525e730469764f0f
+
+          git clone -q --filter=blob:none https://github.com/Aftergraph/runtime.git "$root/runtime"
+          git -C "$root/runtime" checkout -q d9c5efb3a74222326ec71b06d5c2df2d4215d68f
+
+          git clone -q --filter=blob:none https://github.com/Aftergraph/works-execution.git "$root/works"
+          git -C "$root/works" checkout -q 64cabe65bf210b2c65b525750acb45fc6d53894d
+
+          bash "$root/steward/scripts/p2_runtime_works_cross_process_proof.sh"             "$root/runtime" "$root/works"             d9c5efb3a74222326ec71b06d5c2df2d4215d68f             64cabe65bf210b2c65b525750acb45fc6d53894d
         cache: false
-        timeout_s: 120
+        timeout_s: 1200
