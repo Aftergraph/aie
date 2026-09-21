@@ -26,14 +26,13 @@ work:
           command -v git
           command -v go
           command -v node
-          command -v corepack
           command -v python3
 
           root="$(mktemp -d)"
           trap 'rm -rf "$root"' EXIT
 
           git clone -q --filter=blob:none https://github.com/Aftergraph/STEWARD-by-Aftergraph.git "$root/steward"
-          git -C "$root/steward" checkout -q 69e04761ef26c5969cd27a06b23bd3b914a000a5
+          git -C "$root/steward" checkout -q 960fbbfb6b0261747a7071171430b0a6e830150f
 
           git clone -q --filter=blob:none https://github.com/Aftergraph/runtime.git "$root/runtime"
           git -C "$root/runtime" checkout -q d9c5efb3a74222326ec71b06d5c2df2d4215d68f
