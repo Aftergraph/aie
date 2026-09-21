@@ -43,8 +43,8 @@ work:
           set -euo pipefail
           sudo -n test -r /etc/works/works.env
           sudo -n grep -Eq '^WORKS_ENROLL_SECRET=.+' /etc/works/works.env
-          sudo -n gh auth status -h github.com >/dev/null 2>&1
-          sudo -n gh secret list --repo Aftergraph/intelligence-systems-research >/dev/null
-          printf 'credential_broker_github_secret_write_path=probe_pass\\n'
+          gh auth status -h github.com >/dev/null 2>&1
+          gh secret list --repo Aftergraph/intelligence-systems-research >/dev/null
+          printf 'credential_broker_worker_github_path=probe_pass\\n'
         cache: false
         timeout_s: 60
