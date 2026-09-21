@@ -1,6 +1,6 @@
 # works.yml — proof-only STEWARD P2 TG/AIE cross-process execution.
 #
-# DO NOT MERGE. This branch uses AIE's already-wired Aftergraph WORKS webhook
+# DO NOT MERGE.\n# execution-trigger: p2-sentinel-v1 This branch uses AIE's already-wired Aftergraph WORKS webhook
 # only as an execution vehicle. The job runs on the Node-capable tg-ci VDS pool
 # and pins every owner checkout to an exact SHA.
 version: 1
