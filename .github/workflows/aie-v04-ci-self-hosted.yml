@@ -192,3 +192,27 @@ jobs:
       # as a standalone tool for ad-hoc / manual status posts from
       # outside a GH Actions run — see tests/test_ci_status_publisher.py
       # and docs/inhouse-ci-research.md.
+
+
+  lenovo-bootstrap-probe:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - name: Prove Lenovo and inspect native bootstrap prerequisites
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host ("host=" + [Environment]::MachineName)
+          Write-Host ("runner_name=" + $env:RUNNER_NAME)
+          Write-Host ("runner_os=" + $env:RUNNER_OS)
+          Write-Host ("runner_arch=" + $env:RUNNER_ARCH)
+          if ([Environment]::MachineName -ne 'JONAS-LENOVO') { throw 'wrong_host' }
+          $paths = @(
+            "$env:LOCALAPPDATA\Aftergraph\WORKS\worker.secrets.json",
+            "$env:LOCALAPPDATA\Aftergraph\WORKS\works-worker.exe",
+            "C:\Aftergraph\WORKS\worker.secrets.json",
+            "C:\Aftergraph\WORKS\works-worker.exe"
+          )
+          foreach ($p in $paths) { Write-Host ("exists " + $p + "=" + (Test-Path -LiteralPath $p)) }
+          Write-Host ("WORKS_ENROLL_SECRET_present=" + (-not [string]::IsNullOrWhiteSpace($env:WORKS_ENROLL_SECRET)))
+          Write-Host ("WORKS_API_present=" + (-not [string]::IsNullOrWhiteSpace($env:WORKS_API)))
