@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives import serialization
 
 from aie_runtime.gateway.cli import build_gateway_from_config, build_server_options_from_config
 from aie_runtime.gateway.workload_api import RotatingTLSContextProvider, WorkloadAPISVID, WorkloadAPISVIDWatcher
-from tls_material import issue_test_pki
+from tests.gateway.tls_material import issue_test_pki
 
 
 def test_config_loads_transparent_authority_binding(tmp_path):
