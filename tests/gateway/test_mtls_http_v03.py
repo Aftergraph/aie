@@ -14,7 +14,7 @@ from aie_runtime.gateway.http import create_http_server
 from aie_runtime.gateway.policy import LocalPolicyAdapter
 from aie_runtime.gateway.tls import build_client_ssl_context, build_server_ssl_context
 from aie_runtime.store import InMemoryState
-from tls_material import issue_test_pki
+from tests.gateway.tls_material import issue_test_pki
 
 NOW = datetime(2026, 9, 3, 1, 0, tzinfo=timezone.utc)
 
