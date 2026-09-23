@@ -1,0 +1,103 @@
+name: Pock Bot M8 KVM host preflight via AIE external runner
+
+on:
+  push:
+    branches:
+      - "worker/pock-m8-kvm-preflight-20260923"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pock-m8-kvm-aie-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-admission:
+    name: FirecrackerHostAdmission/v1 on AIE external runner
+    runs-on: [self-hosted, linux, x64, aie-interop]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python with ensurepip and venv support
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Record read-only runner and KVM device permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'runner_uid=%s runner_gids=%s\\n' "$(id -u)" "$(id -G)"
+          if [[ -e /dev/kvm ]]; then
+            stat -Lc 'kvm_device_mode=%a kvm_device_uid=%u kvm_device_gid=%g path=%n' /dev/kvm
+          else
+            echo "kvm_device=missing"
+          fi
+
+      - name: Verify vendored files match the canonical Pock Bot branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          verify_blob() {
+            local path="$1"
+            local expected="$2"
+            local actual
+            actual="$(git hash-object "pock-m8-host-preflight/$path")"
+            if [[ "$actual" != "$expected" ]]; then
+              printf 'source_blob_mismatch path=%s expected=%s actual=%s\\n' "$path" "$expected" "$actual" >&2
+              exit 1
+            fi
+          }
+          verify_blob signing_v23.py 275cb02b43df60baa4e4ab3cfa6953502ccd4e49
+          verify_blob trust_v23.py 90f953f6f2542e3286aeb23218c6d385621c8f77
+          verify_blob firecracker_runtime_v23.py 9fb5e82566c253378471ef1f80b308445e336b2d
+          verify_blob scripts/firecracker_host_doctor.py 16399a1f4317538905ce1e910f404b241c4dc6f3
+
+      - name: Install pinned doctor dependency in an isolated venv
+        shell: bash
+        run: |
+          python3 -m venv "$RUNNER_TEMP/pock-m8-host-doctor-venv"
+          "$RUNNER_TEMP/pock-m8-host-doctor-venv/bin/python" -m pip install --disable-pip-version-check "cryptography==46.0.4"
+
+      - name: Run the canonical host doctor
+        id: doctor
+        shell: bash
+        env:
+          DOCTOR_JSON: ${{ runner.temp }}/pock-m8-firecracker-host-doctor.json
+          VENV_PYTHON: ${{ runner.temp }}/pock-m8-host-doctor-venv/bin/python
+        run: |
+          set +e
+          "$VENV_PYTHON" pock-m8-host-preflight/scripts/firecracker_host_doctor.py --required-version 1.17.0 > "$DOCTOR_JSON"
+          doctor_rc=$?
+          set -e
+          cat "$DOCTOR_JSON"
+          echo "doctor_exit_code=$doctor_rc" >> "$GITHUB_OUTPUT"
+          if [[ "$doctor_rc" -ne 0 && "$doctor_rc" -ne 2 ]]; then
+            exit "$doctor_rc"
+          fi
+
+      - name: Upload exact host admission evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pock-m8-aie-kvm-admission-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pock-m8-firecracker-host-doctor.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Require the host to be ready for a boot attempt
+        if: steps.doctor.outputs.doctor_exit_code != '0'
+        shell: bash
+        run: exit 2
+
+      - name: Clean temporary preflight files
+        if: always()
+        shell: bash
+        run: |
+          rm -rf "$RUNNER_TEMP/pock-m8-host-doctor-venv"
+          rm -f "$RUNNER_TEMP/pock-m8-firecracker-host-doctor.json"
