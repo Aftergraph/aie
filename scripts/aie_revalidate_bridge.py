@@ -133,10 +133,21 @@ def main() -> int:
         state = PersistentState(db_path=str(state_path))
         previous_evidence_count = len(state.evidence)
         _check_expected_binding(state, args.action_id, args.expected_binding)
+        request = state.admissions.get(args.action_id)
+        if request is None or not isinstance(request.lease_id, str) or not request.lease_id:
+            raise AIEError("AIE-AUTH-004")
         engine = AdmissionEngine(state=state, policy=ALLOW_POLICY)
         engine.revalidate(args.action_id)
         _append_new_evidence(state, previous_evidence_count)
-        print(json.dumps({"ok": True}))
+        # The execution-time consumer must be able to prove that the successful
+        # revalidation was for the same admitted action and authority lease as
+        # its immutable execution context. These are references, never secret
+        # material, and are returned only after successful revalidation.
+        print(json.dumps({
+            "ok": True,
+            "action_id": args.action_id,
+            "authority_lease_id": request.lease_id,
+        }))
         return 0
     except AIEError as e:
         print(json.dumps({"ok": False, "code": str(e)}))
