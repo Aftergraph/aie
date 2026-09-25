@@ -7,7 +7,7 @@ Usage:
 Hydrates the real AdmissionEngine with PersistentState (leases survive restarts)
 and runs execution-time revalidation (TH-12). Prints machine-readable JSON:
 
-  {"ok": true}
+  {"ok": true, "action_id": "<id>", "authority_lease_id": "<lease>"}
   {"ok": false, "code": "AIE-AUTH-004"}
 
 Exit codes: 0 = ok, 1 = fail-closed rejection, 2 = usage/environment error.
