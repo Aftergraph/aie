@@ -25,7 +25,7 @@ from aie_runtime.gateway.workload_api import (
     WorkloadAPISVIDWatcher,
 )
 from aie_runtime.store import InMemoryState
-from tls_material import issue_test_pki
+from tests.gateway.tls_material import issue_test_pki
 
 NOW = datetime(2026, 9, 3, 1, 0, tzinfo=timezone.utc)
 

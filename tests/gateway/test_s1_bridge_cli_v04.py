@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives import serialization
 
 from aie_runtime.gateway.bridge_cli import build_bridge_from_config
 from aie_runtime.gateway.workload_api import WorkloadAPISVID
-from tls_material import issue_test_pki
+from tests.gateway.tls_material import issue_test_pki
 
 
 def _material(pki, cert_name, key_name, spiffe_id):

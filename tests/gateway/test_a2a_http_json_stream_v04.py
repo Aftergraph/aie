@@ -258,7 +258,7 @@ def test_streaming_wrong_upstream_spiffe_id_denies_before_http_dispatch(tmp_path
     import urllib.request
 
     from aie_runtime.gateway.tls import build_client_ssl_context, build_server_ssl_context
-    from tls_material import issue_test_pki
+    from tests.gateway.tls_material import issue_test_pki
 
     pki = issue_test_pki(tmp_path / "pki-outbound")
     SSEUpstream.first_sent = threading.Event()

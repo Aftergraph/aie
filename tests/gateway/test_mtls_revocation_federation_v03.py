@@ -8,7 +8,7 @@ from aie_runtime.gateway.policy import LocalPolicyAdapter
 from aie_runtime.gateway.core import AIEGateway
 from aie_runtime.gateway.tls import build_client_ssl_context, build_server_ssl_context
 from aie_runtime.store import InMemoryState
-from tls_material import issue_test_pki
+from tests.gateway.tls_material import issue_test_pki
 
 
 def test_revocation_propagates_between_gateways_over_mutual_tls(tmp_path):
