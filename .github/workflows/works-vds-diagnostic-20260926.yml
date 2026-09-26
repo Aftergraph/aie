@@ -1,0 +1,57 @@
+name: WORKS VDS diagnostic probe
+
+on:
+  push:
+    branches:
+      - ops/works-native-diagnose-20260926
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: [self-hosted, linux, x64, aie-interop]
+    timeout-minutes: 5
+    steps:
+      - name: Probe failed WORKS execution
+        env:
+          WORK_ID: wrk_0126269e50e6552204bf385a51c3ebb7
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=http://127.0.0.1:18191
+          echo "probe_host=$(hostname)"
+          curl -fsS --max-time 5 "$BASE/healthz" >/dev/null
+          work="$(curl -fsS --max-time 10 "$BASE/v1/works/$WORK_ID")"
+          printf '%s' "$work" > /tmp/work.json
+          python3 - <<'PY'
+          import json
+          w=json.load(open('/tmp/work.json'))
+          print('work_id=', w.get('id'))
+          print('state=', w.get('state'))
+          print('source=', json.dumps(w.get('source',{}), sort_keys=True))
+          print('attempts:')
+          for a in w.get('attempts',[]):
+              print(json.dumps({
+                  'id':a.get('id'),'node_id':a.get('node_id'),
+                  'status':a.get('status'),'exit_code':a.get('exit_code'),
+                  'error':a.get('error'),'log_ref':a.get('log_ref')
+              },sort_keys=True))
+          print('evidence:')
+          for e in w.get('evidence',[]):
+              print(json.dumps({
+                  'node_id':e.get('node_id'),'type':e.get('type'),
+                  'result':e.get('result'),'details':e.get('details')
+              },sort_keys=True))
+          PY
+          nodes="$(python3 - <<'PY'
+          import json
+          w=json.load(open('/tmp/work.json'))
+          print(' '.join(sorted({a.get('node_id','') for a in w.get('attempts',[]) if a.get('status') in ('failed','timed_out') and a.get('node_id')})))
+          PY
+          )"
+          for node in $nodes; do
+            echo "===== failed node: $node ====="
+            curl -fsS --max-time 10 "$BASE/v1/works/$WORK_ID/nodes/$node/logs" || true
+            echo
+          done
