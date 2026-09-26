@@ -192,3 +192,63 @@ jobs:
       # as a standalone tool for ad-hoc / manual status posts from
       # outside a GH Actions run — see tests/test_ci_status_publisher.py
       # and docs/inhouse-ci-research.md.
+
+
+  lenovo-bootstrap-probe:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - name: Prove Lenovo and inspect native bootstrap prerequisites
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host ("host=" + [Environment]::MachineName)
+          Write-Host ("runner_name=" + $env:RUNNER_NAME)
+          Write-Host ("runner_os=" + $env:RUNNER_OS)
+          Write-Host ("runner_arch=" + $env:RUNNER_ARCH)
+          if ([Environment]::MachineName -ne 'JONAS-LENOVO') { throw 'wrong_host' }
+          $paths = @(
+            "$env:LOCALAPPDATA\Aftergraph\WORKS\worker.secrets.json",
+            "$env:LOCALAPPDATA\Aftergraph\WORKS\works-worker.exe",
+            "C:\Aftergraph\WORKS\worker.secrets.json",
+            "C:\Aftergraph\WORKS\works-worker.exe"
+          )
+          foreach ($p in $paths) { Write-Host ("exists " + $p + "=" + (Test-Path -LiteralPath $p)) }
+          Write-Host ("WORKS_ENROLL_SECRET_present=" + (-not [string]::IsNullOrWhiteSpace($env:WORKS_ENROLL_SECRET)))
+          Write-Host ("WORKS_API_present=" + (-not [string]::IsNullOrWhiteSpace($env:WORKS_API)))
+
+  lenovo-network-discovery:
+    runs-on: [self-hosted, linux, x64, aie-interop]
+    timeout-minutes: 10
+    steps:
+      - name: Discover existing VDS to Lenovo private path
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "vds_host=$(hostname)"
+          echo "tailscale_present=$(command -v tailscale >/dev/null 2>&1 && echo true || echo false)"
+          if command -v tailscale >/dev/null 2>&1; then
+            tailscale status --json > /tmp/tailscale-status.json
+            python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/tailscale-status.json'))
+          me=d.get('Self',{})
+          print('tailscale_self_host='+str(me.get('HostName','')))
+          for p in d.get('Peer',{}).values():
+              host=str(p.get('HostName',''))
+              dns=str(p.get('DNSName',''))
+              ips=','.join(p.get('TailscaleIPs',[]) or [])
+              online=str(bool(p.get('Online',False))).lower()
+              if 'lenovo' in (host+' '+dns).lower() or 'jonas' in (host+' '+dns).lower():
+                  print(f'candidate_peer host={host} dns={dns} ips={ips} online={online}')
+          PY
+            rm -f /tmp/tailscale-status.json
+          fi
+          echo dns_lookup_begin
+          getent hosts jonas-lenovo || true
+          getent hosts JONAS-LENOVO || true
+          echo dns_lookup_end
+          echo "ssh_config_host_present=$(ssh -G jonas-lenovo >/dev/null 2>&1 && echo true || echo false)"
+          echo batch_ssh_probe_begin
+          ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new jonas-lenovo hostname || true
+          echo batch_ssh_probe_end
