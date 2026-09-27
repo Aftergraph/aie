@@ -1,0 +1,65 @@
+name: RenOS Gate 8 Source Probe
+
+on:
+  push:
+    branches:
+      - ops/renos-gate8-source-probe
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: [self-hosted, linux, x64, aie-interop]
+    timeout-minutes: 10
+    steps:
+      - name: Probe authenticated GitHub source access
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p renos-gate8-source-probe
+          {
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+
+            if command -v gh >/dev/null 2>&1 && gh api repos/JonasAbde/Renos-Control --jq '"repo_access=READY visibility=" + .visibility' >/tmp/renos-repo-access.txt 2>/tmp/renos-gh.err; then
+              cat /tmp/renos-repo-access.txt
+              RENOS_SHA="$(gh api repos/JonasAbde/Renos-Control/commits/main --jq .sha)"
+              echo "renos_main_sha=$RENOS_SHA"
+              if gh api "repos/JonasAbde/Renos-Control/tarball/$RENOS_SHA" > /tmp/renos-control.tar.gz 2>/tmp/renos-archive.err                 && tar -tzf /tmp/renos-control.tar.gz >/tmp/renos-archive-list.txt; then
+                echo "renos_archive=READY"
+                echo "renos_archive_entries=$(wc -l </tmp/renos-archive-list.txt)"
+              else
+                echo "renos_archive=NOT_READY"
+                sed -n '1,12p' /tmp/renos-archive.err
+              fi
+            else
+              echo "repo_access=NOT_READY"
+              sed -n '1,12p' /tmp/renos-gh.err
+            fi
+
+            if [ -e /opt/renos-control/current ]; then
+              echo "local_renos_current=READY"
+              echo "local_renos_current_path=$(readlink -f /opt/renos-control/current)"
+              if [ -f /opt/renos-control/current/package.json ]; then
+                echo "local_renos_package=READY"
+              else
+                echo "local_renos_package=NOT_READY"
+              fi
+            else
+              echo "local_renos_current=NOT_READY"
+            fi
+          } | tee renos-gate8-source-probe/report.txt
+
+          grep -q '^repo_access=READY' renos-gate8-source-probe/report.txt
+          grep -q '^renos_archive=READY$' renos-gate8-source-probe/report.txt
+
+      - name: Upload source probe evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: renos-gate8-source-probe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: renos-gate8-source-probe/report.txt
+          if-no-files-found: error
+          retention-days: 14
