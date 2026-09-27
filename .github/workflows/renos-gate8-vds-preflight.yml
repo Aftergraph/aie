@@ -30,13 +30,13 @@ jobs:
             echo "runner_arch=$RUNNER_ARCH"
             echo "node=$(node --version 2>/dev/null || true)"
             echo "npm=$(npm --version 2>/dev/null || true)"
-            if command -v npx >/dev/null 2>&1 && npx --yes wrangler whoami >/tmp/renos-wrangler.out 2>/tmp/renos-wrangler.err; then
+            if command -v npx >/dev/null 2>&1 && npx --yes wrangler@4.127.1 whoami >/tmp/renos-wrangler.out 2>/tmp/renos-wrangler.err; then
               echo "wrangler_auth=READY"
             else
               echo "wrangler_auth=NOT_READY"
               sed -n '1,12p' /tmp/renos-wrangler.err | sed -E 's/[A-Za-z0-9_\-]{24,}/[REDACTED]/g'
             fi
-            if git ls-remote https://github.com/JonasAbde/Renos-Control.git refs/heads/main >/tmp/renos-main.out 2>/tmp/renos-git.err; then
+            if git ls-remote --exit-code https://github.com/JonasAbde/Renos-Control.git refs/heads/main >/tmp/renos-main.out 2>/tmp/renos-git.err; then
               echo "renos_repo_read=READY"
               awk '{print "renos_main_sha="$1}' /tmp/renos-main.out
             else
