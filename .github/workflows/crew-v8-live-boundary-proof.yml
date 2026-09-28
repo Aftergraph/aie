@@ -3,6 +3,7 @@ name: Crew v8 live boundary proof
 on:
   push:
     branches: [crew-v8/live-boundary-proof-20260928]
+  pull_request:
   workflow_dispatch:
 
 permissions:
