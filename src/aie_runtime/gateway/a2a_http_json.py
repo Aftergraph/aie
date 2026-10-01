@@ -492,7 +492,11 @@ class _Handler(BaseHTTPRequestHandler):
                     verified=bool(cert_der),
                 )
                 return TransportIdentity(spiffe_id, True, "spiffe-mtls")
-            except Exception:
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "TLS identity validation failed, falling back to anonymous: %s", exc
+                )
                 return TransportIdentity(None, False, "spiffe-mtls")
         if self.server.trust_header_identity:
             return TransportIdentity(
