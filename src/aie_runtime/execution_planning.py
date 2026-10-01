@@ -25,6 +25,7 @@ class ExecutionPolicyRequest:
     vision_available: bool
     semantic_reasoning_required: bool
     latency_budget_ms: int | None = None
+    authority_granted: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
