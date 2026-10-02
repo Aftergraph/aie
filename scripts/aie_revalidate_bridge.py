@@ -7,7 +7,7 @@ Usage:
 Hydrates the real AdmissionEngine with PersistentState (leases survive restarts)
 and runs execution-time revalidation (TH-12). Prints machine-readable JSON:
 
-  {"ok": true}
+  {"ok": true, "action_id": "<id>", "authority_lease_id": "<id>"}
   {"ok": false, "code": "AIE-AUTH-004"}
 
 Exit codes: 0 = ok, 1 = fail-closed rejection, 2 = usage/environment error.
@@ -134,9 +134,13 @@ def main() -> int:
         previous_evidence_count = len(state.evidence)
         _check_expected_binding(state, args.action_id, args.expected_binding)
         engine = AdmissionEngine(state=state, policy=ALLOW_POLICY)
-        engine.revalidate(args.action_id)
+        result = engine.revalidate(args.action_id)
         _append_new_evidence(state, previous_evidence_count)
-        print(json.dumps({"ok": True}))
+        print(json.dumps({
+            "ok": True,
+            "action_id": result.action_id,
+            "authority_lease_id": result.authority_lease_id,
+        }))
         return 0
     except AIEError as e:
         print(json.dumps({"ok": False, "code": str(e)}))

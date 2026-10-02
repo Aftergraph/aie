@@ -64,6 +64,12 @@ class AdmissionOutcome:
 
 
 @dataclass(frozen=True)
+class RevalidationResult:
+    action_id: str
+    authority_lease_id: str
+
+
+@dataclass(frozen=True)
 class EvidenceRecord:
     event_type: str
     timestamp: datetime
@@ -170,22 +176,22 @@ class AdmissionEngine:
                 lease.budget_remaining += request.budget_cost
             raise
 
-    def revalidate(self, action_id: str) -> None:
+    def revalidate(self, action_id: str) -> RevalidationResult:
         """Execution-time revalidation (TH-12 fix).
 
         The executor MUST call this immediately before running an admitted action.
         Closes the window between admission and execution: revocation (including
         parent-lease cascades), lease expiry, and capability/resource drift fail
         closed here. AIE-AUTH-004 marks execution-time rejection.
+
+        The success result carries only the authority identity that AIE actually
+        re-resolved at action time. TG remains the owner of policy decisions.
         """
         request = self.state.admissions.get(action_id)
         if request is None:
             raise AIEError("AIE-AUTH-004")
-        # Re-resolve against live state: _raise_on drift/expiry/revocation.
-        try:
-            self._resolve(request)
-        except AIEError:
-            raise
+        # Re-resolve against live state: expiry/revocation/scope drift fail here.
+        lease = self._resolve(request)
 
         # HC4: Budget floor - must still be coverable at execution time
         if self.budget_ledger:
@@ -193,10 +199,10 @@ class AdmissionEngine:
             if self.budget_ledger.spent_usd + self.budget_ledger.reserved_usd > self.budget_ledger.budget_usd:
                 raise AIEError("AIE-BUDGET-002")
         else:
-            lease = self.state.leases[request.lease_id]
             if request.budget_cost > lease.budget_remaining:
                 raise AIEError("AIE-BUDGET-002")
-        self._emit("action.revalidated", actionId=action_id, leaseId=request.lease_id)
+        self._emit("action.revalidated", actionId=action_id, leaseId=lease.id)
+        return RevalidationResult(action_id=action_id, authority_lease_id=lease.id)
 
     def delegate(
         self,

@@ -60,7 +60,11 @@ def test_bridge_flushes_revalidated_evidence(tmp_path):
     _state_with_admitted_action(db)
     result = _run(db)
     assert result.returncode == 0
-    assert json.loads(result.stdout) == {"ok": True}
+    assert json.loads(result.stdout) == {
+        "ok": True,
+        "action_id": "a1",
+        "authority_lease_id": "l1",
+    }
     conn = sqlite3.connect(db)
     try:
         rows = conn.execute("SELECT data FROM evidence").fetchall()
@@ -107,7 +111,11 @@ def test_bridge_accepts_exact_tg_binding(tmp_path):
     _state_with_admitted_action(db, [{"namespace": "urn:aftergraph:tg-action:v1", "sha256": BOUNDING}])
     result = _run(db, expected=BOUNDING)
     assert result.returncode == 0
-    assert json.loads(result.stdout) == {"ok": True}
+    assert json.loads(result.stdout) == {
+        "ok": True,
+        "action_id": "a1",
+        "authority_lease_id": "l1",
+    }
 
 
 @pytest.mark.parametrize("extensions, expected", [
