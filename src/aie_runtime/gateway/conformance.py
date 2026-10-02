@@ -127,8 +127,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     rendered = json.dumps(report, indent=2, sort_keys=True)
     if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
-            f.write(rendered + "\n")
+        import tempfile, os
+        out_path = args.output
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(out_path)) or '.', suffix='.tmp')
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                f.write(rendered + '\n')
+            os.replace(tmp, out_path)
+        except BaseException:
+            try: os.unlink(tmp)
+            except OSError: pass
+            raise
     else:
         print(rendered)
     return 0 if report["passed"] else 1
