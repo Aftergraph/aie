@@ -9,6 +9,22 @@
 
 ## Proven locally
 
+### Fresh evidence row — 2026-09-14, SHA 53dcfc1 (read-only, not a promotion claim)
+
+Re-run of the AGENTS.md verification row for this SHA, executed in an isolated
+`uv venv .venv-works` with `uv pip install -e '.[dev,otel]'` (matches
+`works.yml`). Local green output is evidence-bound to this SHA; it is **not** an
+institutional S1.1/S2 promotion and does not override the external-attestation
+gates above.
+
+- `python3 -m compileall -q src` — clean, no output.
+- `PYTHONPATH=src .venv-works/bin/python -m pytest -q` — **388 passed, 0 failed** in 30.73s.
+- `python3 scripts/verify_brand_assets.py` — `OK: Aftergraph/aie satisfies aftergraph.brand-assets/2.0` (exit 0).
+- Scope: `testpaths = ["tests"]` (canonical suite). `scripts/test_verify_brand_assets.py`
+  is out of scope (`tests/`-only discovery); it carries a pre-existing, independent
+  drift — it hardcodes the `v1.0.0` brand marker while `README.md` and the validator
+  now require `v1.1.0` (`verify_brand_assets.py:113`). Reported, not fixed here.
+
 - repository baseline: 173/173 tests passing after S1.1 promotion (8 new regression tests for SEP-2575 SSE relay, rotation gates, SPIRE lab, and read1() prompt delivery)
 - current S2 A2A-preparation targeted suite: 16/16 tests passing after provenance, S1-attestation, malformed-evidence, and TCK-process-status hardening
 - an earlier integrated S2 review tree reached 144/144; after scratch recovery the current PR head is reported conservatively as baseline + targeted evidence rather than claiming a fresh full-suite rerun
