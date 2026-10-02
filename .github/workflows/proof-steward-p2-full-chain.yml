@@ -47,7 +47,7 @@ jobs:
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       with:
         repository: Aftergraph/runtime
-        ref: ${{ env.RUNTIME_SHA }}
+        ref: b66765f3bf748f2dec7c7d4be78226cf6ed547f9
         path: .p2/runtime
         persist-credentials: false
         clean: true
