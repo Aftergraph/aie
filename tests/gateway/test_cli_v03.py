@@ -2,7 +2,7 @@ import json
 
 from aie_runtime.gateway.cli import build_server_options_from_config
 from aie_runtime.gateway.forwarding import HTTPUpstreamForwarder
-from tls_material import issue_test_pki
+from tests.gateway.tls_material import issue_test_pki
 
 
 def test_build_server_options_loads_forwarding_tls_and_federation(tmp_path):

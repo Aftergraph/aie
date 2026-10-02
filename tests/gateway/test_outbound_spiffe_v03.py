@@ -8,7 +8,7 @@ from aie_runtime.errors import AIEError
 from aie_runtime.gateway import spiffe_http
 from aie_runtime.gateway.spiffe_http import post_bytes_with_peer_identity, request_stream_with_peer_identity
 from aie_runtime.gateway.tls import build_client_ssl_context, build_server_ssl_context
-from tls_material import issue_test_pki
+from tests.gateway.tls_material import issue_test_pki
 
 
 class QuietServer(ThreadingHTTPServer):

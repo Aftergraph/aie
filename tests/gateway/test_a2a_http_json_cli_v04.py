@@ -9,7 +9,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 
 from aie_runtime.gateway.workload_api import RotatingTLSContextProvider, WorkloadAPISVID, WorkloadAPISVIDWatcher
-from tls_material import issue_test_pki
+from tests.gateway.tls_material import issue_test_pki
 
 NOW = datetime(2026, 9, 3, 1, 0, tzinfo=timezone.utc)
 

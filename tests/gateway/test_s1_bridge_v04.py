@@ -12,7 +12,7 @@ import pytest
 
 from aie_runtime.gateway.bridge import create_spiffe_bridge
 from aie_runtime.gateway.tls import build_client_ssl_context, build_server_ssl_context
-from tls_material import issue_test_pki
+from tests.gateway.tls_material import issue_test_pki
 
 
 class _EchoHandler(BaseHTTPRequestHandler):
