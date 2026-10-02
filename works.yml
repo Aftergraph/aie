@@ -1,18 +1,5 @@
-# works.yml — AIE CI pipeline, executed by the works-execution control plane.
-#
-# Hosted GitHub Actions CI is dead on this account (billing lock: every
-# hosted job fails with startup_failure before any step runs). The
-# self-hosted GH runner (aie-interop label) covers the S1 interop proof;
-# this file makes the works control plane cover per-push verification
-# with evidence on disk, published as a GitHub commit status
-# (context: works-execution).
-#
-# Requirements.Pool pins execution to the avc-core pool (3 parallel
-# workers on the VDS). cache_key_inputs: [run, repository] makes the
-# RFC-0005 fingerprint source-invariant: identical pipeline definitions
-# hit the cache across pushes (~3s instead of ~26s). The command itself
-# embeds the source (fresh checkout per run), so excluding the SHA from
-# the key is safe.
+# Proof-only WORKS pipeline for Aftergraph-native Windows worker cross-build.
+# This branch is not intended for merge.
 version: 1
 
 work:
@@ -28,12 +15,19 @@ work:
       pool: avc-core
 
     nodes:
-      test:
+      windows-worker-crossbuild:
         run: |
-          uv venv .venv-works
-          uv pip install --python .venv-works/bin/python -q -e '.[dev,otel]'
-          python3 -m compileall -q src
-          .venv-works/bin/python -m pytest -q
-        cache: true
-        cache_key_inputs: [run, repository]
+          set -euo pipefail
+          TMP_DIR="$(mktemp -d)"
+          trap 'rm -rf "$TMP_DIR"' EXIT
+          git clone --filter=blob:none https://github.com/Aftergraph/works-execution.git "$TMP_DIR/works-execution"
+          git -C "$TMP_DIR/works-execution" fetch origin feat/windows-native-worker-v1
+          git -C "$TMP_DIR/works-execution" checkout --detach 5c08324002fd2042bd9bd5af70f8b322225c6e75
+          test "$(git -C "$TMP_DIR/works-execution" rev-parse HEAD)" = "5c08324002fd2042bd9bd5af70f8b322225c6e75"
+          cd "$TMP_DIR/works-execution"
+          go test ./internal/worker -run 'TestCommandShell' -count=1
+          mkdir -p dist
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o dist/works-worker-windows-amd64.exe ./cmd/works-worker
+          test -s dist/works-worker-windows-amd64.exe
+          sha256sum dist/works-worker-windows-amd64.exe
         timeout_s: 600
