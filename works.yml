@@ -1,39 +1,22 @@
-# works.yml — AIE CI pipeline, executed by the works-execution control plane.
-#
-# Hosted GitHub Actions CI is dead on this account (billing lock: every
-# hosted job fails with startup_failure before any step runs). The
-# self-hosted GH runner (aie-interop label) covers the S1 interop proof;
-# this file makes the works control plane cover per-push verification
-# with evidence on disk, published as a GitHub commit status
-# (context: works-execution).
-#
-# Requirements.Pool pins execution to the avc-core pool (3 parallel
-# workers on the VDS). cache_key_inputs: [run, repository] makes the
-# RFC-0005 fingerprint source-invariant: identical pipeline definitions
-# hit the cache across pushes (~3s instead of ~26s). The command itself
-# embeds the source (fresh checkout per run), so excluding the SHA from
-# the key is safe.
+# Diagnostic WORKS probe: private Runtime SSH access from avc-core.
+# Proof-only; do not merge.
 version: 1
 
 work:
   verify:
-    triggers:
-      - push
-      - pull_request
-
+    triggers: [push, pull_request]
     requirements:
       confidence: development
       os: linux
       arch: amd64
       pool: avc-core
-
     nodes:
-      test:
+      runtime-private-access:
         run: |
-          uv venv .venv-works
-          uv pip install --python .venv-works/bin/python -q -e '.[dev,otel]'
-          python3 -m compileall -q src
-          .venv-works/bin/python -m pytest -q
-        cache: true
-        cache_key_inputs: [run, repository]
-        timeout_s: 600
+          set -euo pipefail
+          export PATH=/opt/works/node-current/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH
+          export GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes'
+          git ls-remote git@github.com:Aftergraph/runtime.git | grep -q 'd9c5efb3a74222326ec71b06d5c2df2d4215d68f'
+          printf 'STEWARD_P2_RUNTIME_SSH_ACCESS=PASS\n'
+        cache: false
+        timeout_s: 120
