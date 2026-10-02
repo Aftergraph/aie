@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Mapping
 
 from .core import AIEGateway
+from .freshness import RevocationFreshnessMonitor
 from .identity import TransportIdentity, validate_x509_svid_der
 
 
@@ -26,6 +27,7 @@ class GatewayHTTPServer(ThreadingHTTPServer):
         forwarders: Mapping[str, Any] | None = None,
         federation_trust: set[str] | None = None,
         revocation_replicator: Any | None = None,
+        revocation_freshness_monitor: RevocationFreshnessMonitor | None = None,
     ):
         super().__init__(server_address, RequestHandlerClass)
         self.gateway = gateway
@@ -37,6 +39,7 @@ class GatewayHTTPServer(ThreadingHTTPServer):
         self.forwarders = dict(forwarders or {})
         self.federation_trust = set(federation_trust or set())
         self.revocation_replicator = revocation_replicator
+        self.revocation_freshness_monitor = revocation_freshness_monitor
         if ssl_context is not None:
             self.socket = ssl_context.wrap_socket(self.socket, server_side=True)
 
@@ -220,6 +223,34 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         self.server.gateway.store.revoke(lease_id, revoked_at=revoked_at, source_gateway=identity.spiffe_id)
         self._json(200, {"accepted": True, "lease_id": lease_id})
 
+    def _federated_revocation_freshness(self) -> None:
+        identity = self._transport_identity()
+        if not identity.verified or identity.spiffe_id not in self.server.federation_trust:
+            self._json(403, {"error": "federation_identity_denied"})
+            return
+        monitor = self.server.revocation_freshness_monitor
+        if monitor is None:
+            self._json(503, {"error": "revocation_freshness_unavailable"})
+            return
+        try:
+            body = self._read_json()
+            if body.get("version") != "aie-revocation-freshness/0.1":
+                raise ValueError("unsupported freshness version")
+            if body.get("source_gateway") != identity.spiffe_id:
+                raise ValueError("source gateway mismatch")
+            sequence = body["sequence"]
+            revocation_state_sha256 = body["revocation_state_sha256"]
+        except Exception:
+            self._json(400, {"error": "invalid_revocation_freshness"})
+            return
+        accepted = monitor.observe(
+            source_gateway=identity.spiffe_id,
+            sequence=sequence,
+            revocation_state_sha256=revocation_state_sha256,
+        )
+        status = 200 if accepted else 409
+        self._json(status, {"accepted": accepted, "sequence": sequence})
+
     def _serialize_lease(self, lease) -> dict:
         """Serialize an AuthorityLease to a JSON-compatible dict."""
         d = lease.__dict__ if hasattr(lease, "__dict__") else {}
@@ -236,6 +267,9 @@ class _GatewayHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self.path == "/federation/revocations":
             self._federated_revocation()
+            return
+        if self.path == "/federation/revocation-freshness":
+            self._federated_revocation_freshness()
             return
 
         if self.path == "/revocations":
@@ -337,6 +371,7 @@ def create_http_server(
     forwarders: Mapping[str, Any] | None = None,
     federation_trust: set[str] | None = None,
     revocation_replicator: Any | None = None,
+    revocation_freshness_monitor: RevocationFreshnessMonitor | None = None,
 ) -> GatewayHTTPServer:
     return GatewayHTTPServer(
         (host, port),
@@ -349,4 +384,5 @@ def create_http_server(
         forwarders=forwarders,
         federation_trust=federation_trust,
         revocation_replicator=revocation_replicator,
+        revocation_freshness_monitor=revocation_freshness_monitor,
     )
