@@ -119,9 +119,19 @@ class RevocationFreshnessMonitor:
             return local_digest == self.authority_revocation_state_sha256
 
     def status(self) -> dict[str, object]:
-        """Return observable monitor state for diagnostics."""
+        """Return observable monitor state for diagnostics.
+
+        ``clock_fault`` is True only when the monotonic clock is currently
+        unreadable (raises or returns non-finite) AND a watermark has been
+        confirmed before. Without it, a persistently-faulting clock is
+        indistinguishable from a genuinely stale authority to any caller that
+        reads only ``fresh``/``age_seconds``: both report stale with
+        ``age_seconds=None``. ``is_fresh`` still fails closed in that case;
+        this field is a diagnostic signal, not an authorization input.
+        """
         with self._lock:
             current = self._read_monotonic()
+            has_confirmed = self.last_confirmed_monotonic is not None
             age = (
                 None
                 if self.last_confirmed_monotonic is None or current is None
@@ -131,5 +141,6 @@ class RevocationFreshnessMonitor:
                 "fresh": self.is_fresh(),
                 "last_sequence": self.last_sequence,
                 "age_seconds": age,
+                "clock_fault": current is None and has_confirmed,
                 "authority_revocation_state_sha256": self.authority_revocation_state_sha256,
             }
