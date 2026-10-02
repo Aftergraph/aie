@@ -1,0 +1,31 @@
+name: Probe WORKS Control Plane From Aftergraph VDS
+
+on:
+  push:
+    branches:
+      - proof/aftergraph-native-execution-20260921
+    paths:
+      - .github/workflows/probe-works-control-plane-vds.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: [self-hosted, linux, x64, aie-interop]
+    timeout-minutes: 5
+    steps:
+      - name: Prove VDS runner and WORKS local control plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'host=%s\n' "$(hostname)"
+          printf 'runner_os=%s\n' "$RUNNER_OS"
+          printf 'runner_arch=%s\n' "$RUNNER_ARCH"
+          printf 'tailscale_present=%s\n' "$(command -v tailscale >/dev/null 2>&1 && echo true || echo false)"
+          code="$(curl -sS -o /tmp/works-health.txt -w '%{http_code}' --max-time 3 http://127.0.0.1:18191/healthz || true)"
+          printf 'works_health_http=%s\n' "$code"
+          if [ "$code" = "200" ]; then printf 'works_local_control_plane=true\n'; else printf 'works_local_control_plane=false\n'; fi
+          enroll_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 -X POST -H 'Content-Type: application/json' --data '{\"worker_id\":\"wrkr_probe_only\",\"challenge\":\"deliberately-wrong-enrollment-challenge\"}' http://127.0.0.1:18191/v1/workers/enroll || true)"
+          printf 'works_enrollment_wrong_challenge_http=%s\n' "$enroll_code"
+          if [ "$enroll_code" = "401" ]; then printf 'works_enrollment_configured_fail_closed=true\n'; else printf 'works_enrollment_configured_fail_closed=false\n'; fi
