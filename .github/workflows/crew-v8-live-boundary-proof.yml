@@ -1,0 +1,145 @@
+name: Crew v8 live boundary proof
+
+on:
+  push:
+    branches: [crew-v8/live-boundary-proof-20260928]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  proof:
+    runs-on: [self-hosted, linux, x64, aie-interop]
+    timeout-minutes: 30
+    env:
+      RESULTS: ${{ runner.temp }}/crew-v8-live-proof
+      CREW_SHA256: 2daf3951689b4df9b63f72db161122ae2e86948769d857b69fc4d0c06ca625b5
+      OIDC_AUDIENCE: aftergraph-engineering-crew-v8-live-proof
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RESULTS" && mkdir -p "$RESULTS"
+          printf 'release=aftergraph-engineering-crew-v8.0.0-frontier.1\nsha256=%s\n' "$CREW_SHA256" > "$RESULTS/subject.txt"
+
+      - name: Live OIDC + JWKS verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          VENV="$RUNNER_TEMP/crew-v8-oidc"
+          rm -rf "$VENV" && python3 -m venv "$VENV"
+          "$VENV/bin/pip" install --quiet --disable-pip-version-check 'PyJWT[crypto]==2.10.1'
+          RAW="$(curl -fsSL -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${OIDC_AUDIENCE}")"
+          export OIDC_TOKEN="$(python3 -c 'import json,sys;print(json.load(sys.stdin)["value"])' <<<"$RAW")"
+          "$VENV/bin/python" - <<'PY'
+          import json, os, urllib.request
+          from pathlib import Path
+          import jwt
+          issuer='https://token.actions.githubusercontent.com'
+          aud=os.environ['OIDC_AUDIENCE']
+          token=os.environ['OIDC_TOKEN']
+          with urllib.request.urlopen(issuer+'/.well-known/openid-configuration',timeout=10) as r: cfg=json.load(r)
+          k=jwt.PyJWKClient(cfg['jwks_uri']).get_signing_key_from_jwt(token)
+          c=jwt.decode(token,k.key,algorithms=['RS256'],audience=aud,issuer=issuer)
+          assert c['repository']=='Aftergraph/aie'
+          assert c['sha']==os.environ['GITHUB_SHA']
+          assert c['ref']==os.environ['GITHUB_REF']
+          safe={x:c.get(x) for x in ['iss','aud','sub','repository','ref','sha','workflow','workflow_ref','runner_environment']}
+          Path(os.environ['RESULTS'],'oidc-jwks.json').write_text(json.dumps({'status':'PASS','kid':k.key_id,'jwks_uri':cfg['jwks_uri'],'claims':safe},indent=2))
+          PY
+          unset OIDC_TOKEN RAW
+
+      - name: Install Cosign 3.1.3
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+        with:
+          cosign-release: v3.1.3
+
+      - name: Fulcio + Rekor keyless transparency proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign version > "$RESULTS/cosign-version.txt"
+          COSIGN_YES=true cosign sign-blob --yes --bundle "$RESULTS/crew-v8.sigstore.json" "$RESULTS/subject.txt"
+          cosign verify-blob --bundle "$RESULTS/crew-v8.sigstore.json" --certificate-identity-regexp '^https://github.com/Aftergraph/aie/.github/workflows/crew-v8-live-boundary-proof\.yml@refs/heads/crew-v8/live-boundary-proof-20260928$' --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' "$RESULTS/subject.txt" > "$RESULTS/sigstore-verify.txt"
+          printf 'PASS\n' > "$RESULTS/sigstore.status"
+
+      - name: OTLP Collector + kernel isolation live proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker info >/dev/null
+          OTEL='otel/opentelemetry-collector-contrib:0.161.0'
+          docker pull "$OTEL" >/dev/null
+          cat > "$RESULTS/otel.yaml" <<'EOF'
+          receivers:
+            otlp:
+              protocols:
+                http:
+                  endpoint: 0.0.0.0:4318
+          exporters:
+            debug:
+              verbosity: detailed
+          service:
+            pipelines:
+              traces:
+                receivers: [otlp]
+                exporters: [debug]
+          EOF
+          docker rm -f crew-v8-otel >/dev/null 2>&1 || true
+          docker run -d --name crew-v8-otel --read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev,noexec,size=16m -p 127.0.0.1:14318:4318 -v "$RESULTS/otel.yaml:/etc/otelcol-contrib/config.yaml:ro" "$OTEL" >/dev/null
+          trap 'docker logs crew-v8-otel > "$RESULTS/otel.log" 2>&1 || true; docker rm -f crew-v8-otel crew-v8-isolation >/dev/null 2>&1 || true' EXIT
+          sleep 3
+          cat > "$RESULTS/trace.json" <<EOF
+          {"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"aftergraph-engineering-crew-v8-live-proof"}}]},"scopeSpans":[{"scope":{"name":"aftergraph.live-proof"},"spans":[{"traceId":"ASNFZ4mrze8BI0VniavN7w==","spanId":"ASNFZ4mrze8=","name":"crew-v8-proof","startTimeUnixNano":"1770000000000000000","endTimeUnixNano":"1770000001000000000"}]}]}]}
+          EOF
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' --data-binary @"$RESULTS/trace.json" http://127.0.0.1:14318/v1/traces)"
+          test "$code" = 200
+          sleep 2
+          docker logs crew-v8-otel > "$RESULTS/otel.log" 2>&1
+          grep -q 'aftergraph-engineering-crew-v8-live-proof' "$RESULTS/otel.log"
+          printf 'PASS http=%s image=%s\n' "$code" "$(docker image inspect --format '{{index .RepoDigests 0}}' "$OTEL")" > "$RESULTS/otlp.status"
+
+          ISO='alpine:3.22'
+          docker pull "$ISO" >/dev/null
+          docker run -d --name crew-v8-isolation --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 16 --memory 128m --tmpfs /tmp:rw,nosuid,nodev,noexec,size=8m "$ISO" sleep 60 >/dev/null
+          docker exec crew-v8-isolation sh -ec 'grep "^NoNewPrivs:[[:space:]]*1$" /proc/1/status; grep "^CapEff:[[:space:]]*0000000000000000$" /proc/1/status; test "$(ls /sys/class/net)" = lo; ! touch /etc/must-fail' > "$RESULTS/isolation.txt"
+          printf 'PASS image=%s memory=%s\n' "$(docker image inspect --format '{{index .RepoDigests 0}}' "$ISO")" "$(docker exec crew-v8-isolation cat /sys/fs/cgroup/memory.max)" >> "$RESULTS/isolation.txt"
+
+      - name: Truth probes for remaining external boundaries
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, shutil, socket
+          from pathlib import Path
+          R=Path(os.environ['RESULTS'])
+          k={'dev_kvm_exists':Path('/dev/kvm').exists(),'dev_kvm_rw':False,'firecracker':bool(shutil.which('firecracker')),'jailer':bool(shutil.which('jailer')),'privilege_changed':False}
+          if k['dev_kvm_exists']:
+            try: fd=os.open('/dev/kvm',os.O_RDWR); k['dev_kvm_rw']=True; os.close(fd)
+            except OSError as e: k['open_error']=f'{type(e).__name__}:{e.errno}'
+          R.joinpath('kvm.json').write_text(json.dumps(k,indent=2))
+          hosts={n:{'present':bool(shutil.which(n)),'path':shutil.which(n)} for n in ['codex','claude','hermes','zcode']}
+          R.joinpath('hosts.json').write_text(json.dumps(hosts,indent=2))
+          PY
+          BASE="${WORKS_API_URL:-http://127.0.0.1:18191}"
+          code="$(curl -sS --max-time 3 -o "$RESULTS/works-health.txt" -w '%{http_code}' "$BASE/healthz" || true)"
+          printf 'base=%s\nhealth_http=%s\napi_token_present=%s\nbridge_secret_present=%s\nenroll_secret_present=%s\ncredential_values_exposed=false\n' "$BASE" "$code" "$([ -n "${WORKS_API_TOKEN:-}" ] && echo true || echo false)" "$([ -n "${WORKS_PLATFORM_BRIDGE_SECRET:-}" ] && echo true || echo false)" "$([ -n "${WORKS_ENROLL_SECRET:-}" ] && echo true || echo false)" > "$RESULTS/works.status"
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: crew-v8-live-boundary-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 30
+          path: ${{ runner.temp }}/crew-v8-live-proof/
