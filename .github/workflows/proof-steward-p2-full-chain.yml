@@ -23,7 +23,7 @@ jobs:
     env:
       PATH: /opt/works/node-current/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
       STEWARD_SHA: 2fee57aa808a790afd073fd1525e730469764f0f
-      RUNTIME_SHA: d9c5efb3a74222326ec71b06d5c2df2d4215d68f
+      RUNTIME_SHA: b66765f3bf748f2dec7c7d4be78226cf6ed547f9
       WORKS_SHA: 64cabe65bf210b2c65b525750acb45fc6d53894d
       TG_SHA: 8a2c8d66a67d036227c77904844f105b39723f58
       AIE_SHA: 4e3514b936d2d65433b6c51901afb56908abd545
