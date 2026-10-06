@@ -11,6 +11,7 @@ from aie_runtime.capabilities import capability_set_allows
 
 from .core import AIEGateway
 from .identity import TransportIdentity, validate_x509_svid_der
+from .platform_authority import PlatformAuthorityError, PlatformAuthorityProvisioner
 
 
 class GatewayHTTPServer(ThreadingHTTPServer):
@@ -236,6 +237,38 @@ class _GatewayHandler(BaseHTTPRequestHandler):
                 result[k] = v
         return result
 
+    def _ensure_platform_authority(self) -> None:
+        if not self._authorized():
+            self._json(401, {"error": "unauthorized"})
+            return
+        try:
+            body = self._read_json()
+            if set(body.keys()) != {"principal_id", "tenant_id", "identity_ref", "idempotency_key"}:
+                raise ValueError("unexpected fields")
+            lease = PlatformAuthorityProvisioner(self.server.gateway).ensure(
+                principal_id=str(body["principal_id"]),
+                tenant_id=str(body["tenant_id"]),
+                identity_ref=str(body["identity_ref"]),
+                idempotency_key=str(body["idempotency_key"]),
+            )
+        except PlatformAuthorityError as exc:
+            status = 409 if exc.code in {
+                "principal_rebind", "idempotency_conflict", "authority_revoked",
+                "authority_expired", "mission_not_active"
+            } else 503 if exc.code in {"profile_unconfigured", "durable_state_required"} else 400
+            self._json(status, {"error": exc.code})
+            return
+        except Exception:
+            self._json(400, {"error": "invalid_request"})
+            return
+        self._json(200, {
+            "schema": "aie.platform-authority/1.0",
+            "authority_lease_id": lease.id,
+            "principal_id": lease.principal_id,
+            "mission_id": lease.mission_id,
+            "expires_at": lease.expires_at.isoformat(),
+        })
+
     def _resolve_authority(self) -> None:
         if not self._authorized():
             self._json(401, {"error": "unauthorized"})
@@ -282,6 +315,10 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         })
 
     def do_POST(self) -> None:
+        if self.path == "/v1/platform-authority/ensure":
+            self._ensure_platform_authority()
+            return
+
         if self.path == "/v1/authority/resolve":
             self._resolve_authority()
             return
