@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 import ssl
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Mapping
+
+from aie_runtime.capabilities import capability_set_allows
 
 from .core import AIEGateway
 from .identity import TransportIdentity, validate_x509_svid_der
@@ -233,7 +236,56 @@ class _GatewayHandler(BaseHTTPRequestHandler):
                 result[k] = v
         return result
 
+    def _resolve_authority(self) -> None:
+        if not self._authorized():
+            self._json(401, {"error": "unauthorized"})
+            return
+        try:
+            body = self._read_json()
+            principal_id = str(body["principal_id"])
+            mission_id = str(body["mission_id"])
+            capability = str(body["capability"])
+            resource = str(body["resource"])
+        except Exception:
+            self._json(400, {"error": "invalid_request"})
+            return
+        now = self.server.gateway.clock()
+        candidates = []
+        for lease in self.server.gateway.state.leases.values():
+            if re.fullmatch(r"auth_[a-f0-9]{32}", str(getattr(lease, "id", ""))) is None:
+                continue
+            if getattr(lease, "principal_id", None) != principal_id or getattr(lease, "mission_id", None) != mission_id:
+                continue
+            if self.server.gateway._ancestor_revoked(lease):
+                continue
+            expires_at = getattr(lease, "expires_at", None)
+            if expires_at is None or expires_at <= now:
+                continue
+            capabilities = set(getattr(lease, "capabilities", set()))
+            if not capability_set_allows(capabilities, capability):
+                continue
+            prefixes = tuple(getattr(lease, "resource_prefixes", ()))
+            if not any(resource.startswith(prefix) for prefix in prefixes):
+                continue
+            candidates.append(lease)
+        candidates.sort(key=lambda lease: (getattr(lease, "expires_at"), str(getattr(lease, "id"))))
+        if not candidates:
+            self._json(404, {"error": "authority_lease_unavailable"})
+            return
+        lease = candidates[0]
+        self._json(200, {
+            "schema": "aie.authority-resolution/1.0",
+            "authority_lease_id": lease.id,
+            "principal_id": lease.principal_id,
+            "mission_id": lease.mission_id,
+            "expires_at": lease.expires_at.isoformat(),
+        })
+
     def do_POST(self) -> None:
+        if self.path == "/v1/authority/resolve":
+            self._resolve_authority()
+            return
+
         if self.path == "/federation/revocations":
             self._federated_revocation()
             return
