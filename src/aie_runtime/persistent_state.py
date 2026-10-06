@@ -184,7 +184,6 @@ class EvidenceCollection:
             self._load()
             self._cache.append(item)
             self._cache_dirty = True
-            self._save()
 
     def __iter__(self):
         self._load()
