@@ -9,6 +9,7 @@ from typing import Callable, Any
 
 from aie_runtime.engine import AuthorityLease, MISSION_STATES, Mission, Principal
 from aie_runtime.store import InMemoryState
+from aie_runtime.persistent_state import PersistentState
 
 from .core import AIEGateway
 from .durable import SQLiteGatewayStore
@@ -60,7 +61,13 @@ def build_gateway_from_config(
     clock: Callable[[], datetime] | None = None,
 ) -> AIEGateway:
     path, config = _load_config(config_path)
-    state = InMemoryState()
+    persistent_state_path = config.get("persistent_state")
+    if persistent_state_path:
+        resolved_state = _resolve(path.parent, persistent_state_path)
+        resolved_state.parent.mkdir(parents=True, exist_ok=True)
+        state = PersistentState(db_path=str(resolved_state))
+    else:
+        state = InMemoryState()
 
     for value in config.get("principals", []):
         principal = Principal(value["id"], value["type"], value["identity_ref"])
@@ -110,6 +117,7 @@ def build_gateway_from_config(
         clock=clock or (lambda: datetime.now(timezone.utc)),
         authority_bindings=authority_bindings,
         protocol_passthrough_on_parse_error=bool(config.get("protocol_passthrough_on_parse_error", False)),
+        platform_authority_profile=config.get("platform_authority"),
     )
 
 
