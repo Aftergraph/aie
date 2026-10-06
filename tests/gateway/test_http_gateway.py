@@ -353,3 +353,55 @@ def test_gateway_post_mcp_subscriptions_listen_streams_response_as_chunked(tmp_p
     # The forward_stream path must have been called (not the buffered forward).
     assert stub.received_method == "POST"
     assert stub.received_body.get("method") == "subscriptions/listen"
+
+
+def test_authority_resolve_returns_only_matching_active_canonical_lease(tmp_path):
+    server, _ = build_server(tmp_path)
+    state = server.gateway.state
+    state.leases["auth_11111111111111111111111111111111"] = AuthorityLease(
+        id="auth_11111111111111111111111111111111",
+        principal_id="agent:refund",
+        mission_id="mission:refunds",
+        capabilities={"computer"},
+        resource_prefixes=("lume://computer/",),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        budget_remaining=10,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        status, payload = request_json(
+            base,
+            "POST",
+            "/v1/authority/resolve",
+            {
+                "principal_id": "agent:refund",
+                "mission_id": "mission:refunds",
+                "capability": "computer",
+                "resource": "lume://computer/session-1",
+            },
+            {"Content-Type": "application/json", "Authorization": "Bearer admin-secret"},
+        )
+        assert status == 200
+        assert payload["schema"] == "aie.authority-resolution/1.0"
+        assert payload["authority_lease_id"] == "auth_11111111111111111111111111111111"
+
+        status, payload = request_json(
+            base,
+            "POST",
+            "/v1/authority/resolve",
+            {
+                "principal_id": "agent:refund",
+                "mission_id": "mission:refunds",
+                "capability": "local.device",
+                "resource": "lume://computer/session-1",
+            },
+            {"Content-Type": "application/json", "Authorization": "Bearer admin-secret"},
+        )
+        assert status == 404
+        assert payload["error"] == "authority_lease_unavailable"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
