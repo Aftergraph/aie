@@ -69,6 +69,7 @@ class AIEGateway:
         authority_bindings: Mapping[str, tuple[str, str]] | None = None,
         protocol_passthrough_on_parse_error: bool = False,
         revocation_freshness_check: Callable[[], bool] | None = None,
+        platform_authority_profile: Mapping[str, Any] | None = None,
     ):
         self.state = state
         self.store = store
@@ -79,6 +80,7 @@ class AIEGateway:
         self.authority_bindings = dict(authority_bindings or {})
         self.protocol_passthrough_on_parse_error = bool(protocol_passthrough_on_parse_error)
         self.revocation_freshness_check = revocation_freshness_check
+        self.platform_authority_profile = dict(platform_authority_profile or {})
         for lease in self.state.leases.values():
             self.store.initialize_budget(lease.id, float(lease.budget_remaining))
 

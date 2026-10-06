@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import sqlite3
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -13,11 +14,12 @@ from .engine import ActionRequest, AuthorityLease, Mission, Principal
 
 class PersistentCollection:
     """A dict-like collection that persists changes to SQLite."""
-    def __init__(self, conn: sqlite3.Connection, table: str, cls: type | None = None, secret_key: bytes | None = None):
+    def __init__(self, conn: sqlite3.Connection, table: str, cls: type | None = None, secret_key: bytes | None = None, lock: threading.RLock | None = None):
         self._conn = conn
         self._table = table
         self._cls = cls
         self._secret_key = secret_key
+        self._lock = lock or threading.RLock()
         self._cache: dict[str, Any] = {}
         self._cache_dirty = False
 
@@ -77,66 +79,82 @@ class PersistentCollection:
             # Convert lists back to sets for capabilities
             if "capabilities" in d and isinstance(d["capabilities"], list):
                 d["capabilities"] = set(d["capabilities"])
-            # Convert lists back to tuples for extensions
+            # Convert tuple-shaped fields back from JSON arrays.
             if "extensions" in d and isinstance(d["extensions"], list):
                 d["extensions"] = tuple(d["extensions"])
+            if "resource_prefixes" in d and isinstance(d["resource_prefixes"], list):
+                d["resource_prefixes"] = tuple(d["resource_prefixes"])
             return cls(**d)
         return d
 
     def __getitem__(self, key: str) -> Any:
-        self._load()
-        return self._cache[key]
+        with self._lock:
+            self._load()
+            return self._cache[key]
 
     def __setitem__(self, key: str, value: Any) -> None:
-        self._load()
-        self._cache[key] = value
-        self._cache_dirty = True
-        self._save()
+        with self._lock:
+            self._load()
+            self._cache[key] = value
+            self._cache_dirty = True
+            self._save()
 
     def __delitem__(self, key: str) -> None:
-        self._load()
-        del self._cache[key]
-        self._cache_dirty = True
+        with self._lock:
+            self._load()
+            del self._cache[key]
+            self._cache_dirty = True
+            self._save()
 
     def get(self, key: str, default: Any = None) -> Any:
-        self._load()
-        return self._cache.get(key, default)
+        with self._lock:
+            self._load()
+            return self._cache.get(key, default)
 
     def items(self):
-        self._load()
-        return self._cache.items()
+        with self._lock:
+            self._load()
+            return tuple(self._cache.items())
 
     def values(self):
-        self._load()
-        return self._cache.values()
+        with self._lock:
+            self._load()
+            return tuple(self._cache.values())
 
     def keys(self):
-        self._load()
-        return self._cache.keys()
+        with self._lock:
+            self._load()
+            return tuple(self._cache.keys())
 
     def __iter__(self):
-        self._load()
-        return iter(self._cache)
+        with self._lock:
+            self._load()
+            return iter(tuple(self._cache))
 
     def __len__(self):
-        self._load()
-        return len(self._cache)
+        with self._lock:
+            self._load()
+            return len(self._cache)
 
     def __contains__(self, key):
-        self._load()
-        return key in self._cache
+        with self._lock:
+            self._load()
+            return key in self._cache
 
     def update(self, *args, **kwargs):
-        self._load()
-        self._cache.update(*args, **kwargs)
-        self._cache_dirty = True
+        with self._lock:
+            self._load()
+            self._cache.update(*args, **kwargs)
+            self._cache_dirty = True
+            self._save()
 
 
 class EvidenceCollection:
     """Evidence list with HMAC chain for tamper-evidence."""
-    def __init__(self, conn: sqlite3.Connection, secret_key: bytes):
+    def __init__(self, conn: sqlite3.Connection, secret_key: bytes, lock: threading.RLock | None = None):
         self._conn = conn
         self._secret_key = secret_key
+        self._lock = lock or threading.RLock()
         self._cache: list[Any] = []
         self._cache_dirty = False
 
@@ -164,9 +182,10 @@ class EvidenceCollection:
         self._cache_dirty = False
 
     def append(self, item: Any) -> None:
-        self._load()
-        self._cache.append(item)
-        self._cache_dirty = True
+        with self._lock:
+            self._load()
+            self._cache.append(item)
+            self._cache_dirty = True
 
     def __iter__(self):
         self._load()
@@ -185,6 +204,7 @@ class PersistentState:
     """
     db_path: str = ":memory:"
     _conn: sqlite3.Connection | None = field(default=None, init=False, repr=False)
+    _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
     _secret_key: bytes = field(default_factory=lambda: b"aie-persistent-state-key", init=False, repr=False)
     _principals: PersistentCollection = field(default=None, init=False, repr=False)
     _missions: PersistentCollection = field(default=None, init=False, repr=False)
@@ -195,7 +215,7 @@ class PersistentState:
 
     def __post_init__(self) -> None:
         if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path)
+            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self._conn.execute("PRAGMA journal_mode=WAL;")
             self._init_schema()
             self._init_collections()
@@ -237,12 +257,12 @@ class PersistentState:
         conn = self._conn
         if conn is None:
             return
-        self._principals = PersistentCollection(conn, "principals", Principal)
-        self._missions = PersistentCollection(conn, "missions", Mission)
-        self._leases = PersistentCollection(conn, "leases", AuthorityLease, self._secret_key)
-        self._outcomes = PersistentCollection(conn, "outcomes")
-        self._admissions = PersistentCollection(conn, "admissions", ActionRequest)
-        self._evidence = EvidenceCollection(conn, self._secret_key)
+        self._principals = PersistentCollection(conn, "principals", Principal, lock=self._lock)
+        self._missions = PersistentCollection(conn, "missions", Mission, lock=self._lock)
+        self._leases = PersistentCollection(conn, "leases", AuthorityLease, self._secret_key, lock=self._lock)
+        self._outcomes = PersistentCollection(conn, "outcomes", lock=self._lock)
+        self._admissions = PersistentCollection(conn, "admissions", ActionRequest, lock=self._lock)
+        self._evidence = EvidenceCollection(conn, self._secret_key, lock=self._lock)
 
     @property
     def principals(self) -> PersistentCollection:
