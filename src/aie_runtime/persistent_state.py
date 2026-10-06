@@ -79,9 +79,11 @@ class PersistentCollection:
             # Convert lists back to sets for capabilities
             if "capabilities" in d and isinstance(d["capabilities"], list):
                 d["capabilities"] = set(d["capabilities"])
-            # Convert lists back to tuples for extensions
+            # Convert tuple-shaped fields back from JSON arrays.
             if "extensions" in d and isinstance(d["extensions"], list):
                 d["extensions"] = tuple(d["extensions"])
+            if "resource_prefixes" in d and isinstance(d["resource_prefixes"], list):
+                d["resource_prefixes"] = tuple(d["resource_prefixes"])
             return cls(**d)
         return d
 
