@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 import ssl
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Mapping
+
+from aie_runtime.capabilities import capability_set_allows
 
 from .core import AIEGateway
 from .identity import TransportIdentity, validate_x509_svid_der
@@ -246,20 +249,20 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         except Exception:
             self._json(400, {"error": "invalid_request"})
             return
-        now = datetime.now(timezone.utc)
+        now = self.server.gateway.clock()
         candidates = []
         for lease in self.server.gateway.state.leases.values():
-            if not str(getattr(lease, "id", "")).startswith("auth_"):
+            if re.fullmatch(r"auth_[a-f0-9]{32}", str(getattr(lease, "id", ""))) is None:
                 continue
             if getattr(lease, "principal_id", None) != principal_id or getattr(lease, "mission_id", None) != mission_id:
                 continue
-            if bool(getattr(lease, "revoked", False)):
+            if self.server.gateway._ancestor_revoked(lease):
                 continue
             expires_at = getattr(lease, "expires_at", None)
             if expires_at is None or expires_at <= now:
                 continue
             capabilities = set(getattr(lease, "capabilities", set()))
-            if capability not in capabilities and "*" not in capabilities:
+            if not capability_set_allows(capabilities, capability):
                 continue
             prefixes = tuple(getattr(lease, "resource_prefixes", ()))
             if not any(resource.startswith(prefix) for prefix in prefixes):
