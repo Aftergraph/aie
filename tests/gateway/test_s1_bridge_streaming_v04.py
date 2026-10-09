@@ -58,3 +58,49 @@ def test_plain_bridge_stream_yields_first_available_http_chunk(monkeypatch):
     with pytest.raises(StopIteration):
         next(stream)
     assert connections[-1].closed is True
+
+
+def test_send_stream_annotation_resolves_iterable():
+    from typing import Iterable, get_type_hints
+
+    from aie_runtime.gateway.bridge import _BridgeHandler
+
+    hints = get_type_hints(_BridgeHandler._send_stream)
+    assert hints["stream"] is Iterable[bytes]
+
+
+def test_send_stream_writes_each_chunk_from_an_iterable():
+    from aie_runtime.gateway.bridge import _BridgeHandler
+
+    written = []
+
+    class _W:
+        def write(self, data):
+            written.append(data)
+
+        def flush(self):
+            return None
+
+    class Handler(_BridgeHandler):
+        def send_response(self, status):
+            return None
+
+        def send_header(self, key, value):
+            return None
+
+        def end_headers(self):
+            return None
+
+        @property
+        def command(self):
+            return "POST"
+
+        @property
+        def wfile(self):
+            return _W()
+
+    handler = Handler.__new__(Handler)
+    handler._send_stream(200, {"Content-Type": "text/event-stream"}, iter([b"a", b"b"]))
+    joined = b"".join(written)
+    assert b"1\r\na\r\n" in joined
+    assert b"1\r\nb\r\n" in joined
