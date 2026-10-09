@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contract:team/0.4-draft",
+  "title": "AIE Draft 0.4 Team Artifact (frozen draft)",
+  "type": "object",
+  "required": [
+    "teamId",
+    "displayName",
+    "status",
+    "institutionRef",
+    "members",
+    "sourceRef"
+  ],
+  "properties": {
+    "teamId": {
+      "type": "string",
+      "pattern": "^team_[a-z0-9][a-z0-9-]*$",
+      "description": "Stable team identifier."
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "status": {
+      "enum": ["active", "suspended", "dissolved"]
+    },
+    "institutionRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to the owning Institution manifest (e.g. its $id or a stable artifact ref)."
+    },
+    "members": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["principalId", "role", "memberStatus"],
+        "properties": {
+          "principalId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Must resolve to a principal declared by the owning Institution manifest."
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Team-scoped label. Carries no authority semantics by itself."
+          },
+          "memberStatus": {
+            "enum": ["active", "suspended", "revoked"]
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revokedBy": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "topology": {
+      "enum": ["hierarchical", "peer", "pipeline", "council"],
+      "description": "Declared team shape for display. Not a claim about live communication paths or authority."
+    },
+    "sourceRef": {
+      "type": "object",
+      "required": ["repository", "ref", "path"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact commit SHA or immutable ref of the declaring artifact."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "description": "Provenance of the declaring artifact. Consumers must surface this with any projection."
+    },
+    "authorityRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Optional references to AIE delegation/lease artifacts or Trust Gateway decisions that consumers may link to. Membership never implies any authority represented here."
+    }
+  },
+  "additionalProperties": false,
+  "$comment": "INVARIANT: membership does not imply authorization. Authority is resolved exclusively through AIE authority resolution and Trust Gateway admission. This artifact is declarative truth about team composition, not an enforcement point. Draft status: pending maintainer approval per GOVERNANCE.md decision class 2, tracked in issue #90."
+}
