@@ -114,7 +114,7 @@ def test_workload_api_material_builds_mtls_contexts(tmp_path):
     from cryptography import x509
     from cryptography.hazmat.primitives import serialization
     from aie_runtime.gateway.workload_api import WorkloadAPISVID, build_ssl_contexts_from_svid
-    from tls_material import issue_test_pki
+    from tests.gateway.tls_material import issue_test_pki
 
     pki = issue_test_pki(tmp_path / 'pki-material')
     leaf = x509.load_pem_x509_certificate(pki['gw_a_crt'].read_bytes())
