@@ -7,8 +7,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: aie-v04-s1-${{ github.ref }}
-  cancel-in-progress: true
+  group: aie-v04-s1-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   external-interop:
